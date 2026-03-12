@@ -22,16 +22,17 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow serving images
 }));
 
+const allowed = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map(o => o.trim());
+
 app.use(cors({
   origin: (origin, cb) => {
-    const allowed = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000').split(',');
     if (!origin || allowed.includes(origin)) return cb(null, true);
-    console.log(allowed);
-    cb(new Error('Not allowed by CORS'));
+    console.log("Blocked origin:", origin);
+    cb(new Error("Not allowed by CORS"));
   },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 // ─── Request Parsing ──────────────────────────────────────────────────────────
