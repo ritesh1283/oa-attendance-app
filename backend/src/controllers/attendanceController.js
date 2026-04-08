@@ -9,7 +9,7 @@ const fs = require('fs');
 // ─── Mark Attendance (TPO Volunteer) ─────────────────────────────────────────
 const markAttendance = async (req, res) => {
   const { oa_session_id, scholar_no, face_match_score, liveness_score } = req.body;
-
+  console.log("Hello", liveness_score);
   if (!oa_session_id || !scholar_no) {
     return res.status(400).json({ success: false, message: 'oa_session_id and scholar_no are required' });
   }

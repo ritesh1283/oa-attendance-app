@@ -10,6 +10,7 @@ backend/dist/
 
 # Environment variables
 .env
+attendance/
 
 # Python virtual environments
 venv/

@@ -117,11 +117,18 @@ const updateOAStatus = async (req, res) => {
 // ─── Extend OA attendance window (TPO Volunteer) ──────────────────────────────
 const extendOASession = async (req, res) => {
   const { id } = req.params;
+  const { duration } = req.body; // 30 or 60 minutes
   const maxHours = parseFloat(process.env.OA_MAX_EXTENSION_HOURS) || 10.5;
+
+  // Validate duration
+  const minutes = parseInt(duration) || 30;
+  if (![30, 60].includes(minutes)) {
+    return res.status(400).json({ success: false, message: 'Duration must be 30 or 60 minutes' });
+  }
 
   try {
     const [sessions] = await pool.execute(
-      'SELECT oa_date, start_time, status FROM oa_sessions WHERE id = ?',
+      'SELECT oa_date, start_time, end_time, status, extended_until FROM oa_sessions WHERE id = ?',
       [id]
     );
     if (!sessions.length) return res.status(404).json({ success: false, message: 'OA not found' });
@@ -130,8 +137,13 @@ const extendOASession = async (req, res) => {
     const oaStart = new Date(`${session.oa_date}T${session.start_time}`);
     const maxEnd = new Date(oaStart.getTime() + maxHours * 60 * 60 * 1000);
 
-    const now = new Date();
-    if (now > maxEnd) {
+    // Calculate new extended_until from the current end time or existing extension
+    const currentEnd = session.extended_until
+      ? new Date(session.extended_until)
+      : new Date(`${session.oa_date}T${session.end_time}`);
+    const newEnd = new Date(currentEnd.getTime() + minutes * 60 * 1000);
+
+    if (newEnd > maxEnd) {
       return res.status(400).json({
         success: false,
         message: `Cannot extend beyond ${maxHours} hours of OA start time`,
@@ -140,71 +152,22 @@ const extendOASession = async (req, res) => {
 
     await pool.execute(
       'UPDATE oa_sessions SET status = "extended", extended_until = ? WHERE id = ?',
-      [maxEnd, id]
+      [newEnd, id]
     );
 
     await delCachePattern('oa_sessions:*');
 
+    const timeStr = newEnd.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     res.json({
       success: true,
-      message: `OA extended until ${maxEnd.toISOString()}`,
-      data: { extended_until: maxEnd },
+      message: `OA extended by ${minutes} minutes (until ${timeStr})`,
+      data: { extended_until: newEnd },
     });
   } catch (err) {
     logger.error('Extend OA error', { error: err.message });
     res.status(500).json({ success: false, message: 'Extension failed' });
   }
 };
-
-// const getActiveOASessions = async (req, res) => {
-//   try {
-//     const now = new Date();
-
-//     const today = now.toLocaleDateString('en-CA'); 
-//     const currentTime = now.toTimeString().slice(0,8); 
-
-//     const [sessions] = await pool.execute(
-//       `SELECT * FROM oa_sessions
-//        WHERE oa_date = ?
-//        AND status = 'active'
-//        AND start_time <= ?
-//        AND end_time >= ?`,
-//       [today, currentTime, currentTime]
-//     );
-
-//     const parsed = sessions.map(s => ({
-//       ...s,
-//       branches: JSON.parse(s.branches),
-//       sections: JSON.parse(s.sections)
-//     }));
-
-//     res.json({ success: true, data: parsed });
-
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ success: false, message: 'Failed to fetch active sessions' });
-//   }
-// };
-const a = 90;
-
-// ─── Get active OA for current time (volunteer use) ───────────────────────────
-
-// {
-//   const now = new Date();
-
-// const today = now.toLocaleDateString('en-CA'); // YYYY-MM-DD
-// const currentTime = now.toTimeString().slice(0, 8); // HH:MM:SS
-// const nowDatetime = now.toISOString().slice(0, 19).replace('T', ' '); // YYYY-MM-DD HH:MM:SS
-
-// const [sessions] = await pool.execute(
-//   `SELECT * FROM oa_sessions
-//    WHERE oa_date = ? AND status IN ('active','extended')
-//    AND (
-//      (status='active' AND start_time <= ? AND end_time >= ?)
-//      OR (status='extended' AND extended_until >= ?)
-//    )`,
-//   [today, currentTime, currentTime, nowDatetime]
-// }
 
 
 

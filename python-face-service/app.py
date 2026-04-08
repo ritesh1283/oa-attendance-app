@@ -79,7 +79,7 @@ def preprocess_image(bgr_img: np.ndarray) -> np.ndarray:
         img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
 
     # 2. Denoise
-    img = cv2.fastNlMeansDenoisingColored(img, None, h=7, hColor=7, templateWindowSize=7, searchWindowSize=21)
+    img = cv2.bilateralFilter(img, 5, 75, 75)
 
     # 3. CLAHE on luminance channel
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
@@ -169,15 +169,12 @@ def extract_embedding(bgr_img: np.ndarray):
     return embedding, confidence, loc
 
 
-def cosine_similarity_score(vec_a: list, vec_b: list) -> float:
+def calculate_euclidean_distance(vec_a: list, vec_b: list) -> float:
     """
     MATHEMATICS — Euclidean Distance:
     - dlib face embeddings are trained using Euclidean distance (Triplet Loss).
-    - Cosine similarity is a bug here because dlib vectors are mostly positive, 
-      causing ANY two faces to have > 80% cosine similarity.
-    
-    Range: 0.0 (identical) to ~1.2 (different)
-    dlib standard threshold: <= 0.60 is a match.
+    - Range: 0.0 (identical) to ~1.2 (different)
+    - dlib standard threshold: <= 0.60 is a match.
     """
     a = np.array(vec_a, dtype=np.float64)
     b = np.array(vec_b, dtype=np.float64)
@@ -362,26 +359,39 @@ async def verify_face(
                 "processing_time_ms": ms,
             }
 
+            
+
         # Face comparison
-        similarity     = cosine_similarity_score(live_embedding, stored)
-        match_thresh   = 1.0 - FACE_MATCH_THRESHOLD   # e.g. 0.60
-        is_match       = similarity >= match_thresh
-        reason         = "verified" if is_match else f"face_mismatch (similarity={similarity:.3f}, need>={match_thresh:.2f})"
-        ms             = int((time.time() - t0) * 1000)
+        t0 = time.time()
+        distance = calculate_euclidean_distance(live_embedding, stored)
 
-        log.info(f"VERIFY {'OK' if is_match else 'FAIL'}  sim={similarity:.3f}  ear={ear:.3f}  {ms}ms")
+        # Dlib's standard threshold operates on distance, not similarity. 
+        # Lower distance = closer match.
+        dist_thresh = 0.60  
+        is_match = distance <= dist_thresh
 
+        # Convert distance to a human-readable similarity score (0.0 to 1.0)
+        # Since a completely different face is ~1.2 distance, we normalize against 1.2.
+        # Using max() ensures we don't get negative percentages.
+        similarity = max(0.0, 1.0 - (distance / 1.2))
+
+        reason = "verified" if is_match else f"face_mismatch (distance={distance:.3f}, need<={dist_thresh:.2f})"
+        ms = int((time.time() - t0) * 1000)
+
+        log.info(f"VERIFY {'OK' if is_match else 'FAIL'}  dist={distance:.3f}  ear={ear:.3f}  {ms}ms")
+        
         return {
             "success":            True,
             "verified":           is_match,
-            "similarity":         round(similarity, 4),
-            "similarity_percent": round(similarity * 100, 1),
+            "distance":           round(distance, 4),               # Added this for debugging transparency
+            "similarity_percent": round(similarity * 100, 1),       # Now guaranteed to be 0% to 100%
             "liveness_score":     round(ear, 4),
             "liveness_passed":    liveness_passed,
             "confidence":         round(confidence, 3),
             "reason":             reason,
             "processing_time_ms": ms,
         }
+
 
     except ValueError as e:
         log.warning(f"VERIFY FAIL: {e}")

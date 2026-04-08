@@ -28,35 +28,59 @@ router.post('/auth/register',
   ],
   authCtrl.registerStudent
 );
+
+// Email OTP flow
+router.post('/auth/send-otp', authCtrl.sendOtp);
+router.post('/auth/verify-otp-register',
+  [
+    body('login_id').notEmpty().trim().isLength({ min: 3, max: 50 }),
+    body('password').isLength({ min: 6, max: 100 }),
+    body('full_name').notEmpty().trim().isLength({ min: 2, max: 100 }),
+    body('scholar_no').notEmpty().trim().isLength({ min: 2, max: 20 }),
+    body('branch').notEmpty().trim(),
+    body('section').notEmpty().trim(),
+    body('email').isEmail(),
+    body('otp').notEmpty().isLength({ min: 6, max: 6 }),
+  ],
+  authCtrl.verifyOtpAndRegister
+);
+
 router.post('/auth/login',    loginLimiter, [body('login_id').notEmpty(), body('password').notEmpty()], authCtrl.login);
 router.post('/auth/logout',   authenticate, authCtrl.logout);
 router.post('/auth/refresh',  authCtrl.refreshAccessToken);
 router.get('/auth/profile',   authenticate, authCtrl.getProfile);
 
+// Change password (all authenticated users)
+router.patch('/auth/change-password', authenticate, authCtrl.changePassword);
+
+// Delete account (student self-delete)
+router.delete('/auth/account', authenticate, isStudent, authCtrl.deleteAccount);
+
+// Staff management (TPO Admin only)
+router.get('/auth/staff',           authenticate, isTpoAdmin, authCtrl.getStaffList);
+router.post('/auth/create-staff',   authenticate, isTpoAdmin, authCtrl.createStaff);
+router.delete('/auth/staff/:userId', authenticate, isTpoAdmin, authCtrl.deleteStaff);
+
 // ════════════════════════════════════════════════════
 // FACE  (Python microservice replaces Face++ API)
 // ════════════════════════════════════════════════════
-// Student: register their face (extract + store 128-dim embedding)
 router.post('/face/register',
   authenticate, isStudent, faceLimiter,
   uploadMemory.single('face_image'),
   faceCtrl.registerFace
 );
 
-// Volunteer: verify face during OA (compare live vs stored embedding)
 router.post('/face/verify',
   authenticate, isTpoVolunteer, faceLimiter,
   uploadMemory.single('face_image'),
   faceCtrl.verifyFace
 );
 
-// Admin: reset a student's face (they must re-register)
 router.patch('/face/reset/:studentId',
   authenticate, isTpoAdmin,
   faceCtrl.resetFaceRegistration
 );
 
-// Admin: check if Python service is alive
 router.get('/face/health',
   authenticate, isTpoAdmin,
   faceCtrl.pythonServiceHealth
