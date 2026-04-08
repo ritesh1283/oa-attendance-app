@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { FiPlus, FiUsers, FiCalendar, FiClock, FiTrash2, FiUserPlus, FiEye, FiEyeOff, FiX } from 'react-icons/fi';
 import { format } from 'date-fns';
 
-const BRANCHES = ['CSE', 'MDS', 'ECE', 'EE', 'ME', 'CE', 'CH'];
+const BRANCHES = ['CS', 'MDS', 'ECE', 'EE', 'ME', 'Civil Eng', 'Chem Eng'];
 const SECTIONS = ['1', '2', '3'];
 const statusColors = {
   upcoming: 'badge-info',

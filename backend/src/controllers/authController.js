@@ -4,121 +4,7 @@ const { generateAccessToken, generateRefreshToken, verifyRefreshToken, invalidat
 const { setCache, delCache } = require('../config/redis');
 const logger = require('../utils/logger');
 const { validationResult } = require('express-validator');
-const { sendOTP } = require('../services/emailService');
 
-// ─── Send OTP ─────────────────────────────────────────────────────────────────
-const sendOtp = async (req, res) => {
-  const { email } = req.body;
-  if (!email || !email.endsWith('@stu.manit.ac.in')) {
-    return res.status(400).json({ success: false, message: 'Please provide a valid institute address (@stu.manit.ac.in)' });
-  }
-
-  try {
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
-
-    // Delete any existing OTP for this email
-    await pool.execute('DELETE FROM email_otps WHERE email = ?', [email]);
-
-    // Store OTP
-    await pool.execute(
-      'INSERT INTO email_otps (email, otp, expires_at) VALUES (?, ?, ?)',
-      [email, otp, expiresAt]
-    );
-
-    // Send email
-    await sendOTP(email, otp);
-
-    res.json({ success: true, message: 'OTP sent to your email' });
-  } catch (err) {
-    logger.error('Send OTP error', { error: err.message });
-    res.status(500).json({ success: false, message: err.message || 'Failed to send OTP' });
-  }
-};
-
-// ─── Verify OTP and Register ──────────────────────────────────────────────────
-const verifyOtpAndRegister = async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, errors: errors.array() });
-  }
-
-  const { login_id, password, full_name, scholar_no, branch, section, email, otp } = req.body;
-
-  if (!otp || otp.length !== 6) {
-    return res.status(400).json({ success: false, message: 'Please enter a valid 6-digit OTP' });
-  }
-
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-
-    // Verify OTP
-    const [otpRows] = await conn.execute(
-      'SELECT id, otp, expires_at FROM email_otps WHERE email = ? ORDER BY created_at DESC LIMIT 1',
-      [email]
-    );
-
-    if (!otpRows.length) {
-      return res.status(400).json({ success: false, message: 'No OTP found. Please request a new one.' });
-    }
-
-    const otpRecord = otpRows[0];
-    if (otpRecord.otp !== otp) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP' });
-    }
-    if (new Date(otpRecord.expires_at) < new Date()) {
-      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
-    }
-
-    // Check duplicate login_id
-    const [existing] = await conn.execute('SELECT id FROM users WHERE login_id = ?', [login_id]);
-    if (existing.length) {
-      return res.status(409).json({ success: false, message: 'Login ID already registered' });
-    }
-
-    // Check duplicate scholar_no
-    const [existingScholar] = await conn.execute('SELECT id FROM students WHERE scholar_no = ?', [scholar_no]);
-    if (existingScholar.length) {
-      return res.status(409).json({ success: false, message: 'Scholar number already registered' });
-    }
-
-    // Check duplicate email
-    const [existingEmail] = await conn.execute('SELECT id FROM users WHERE email = ?', [email]);
-    if (existingEmail.length) {
-      return res.status(409).json({ success: false, message: 'Email already registered' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    const [userResult] = await conn.execute(
-      'INSERT INTO users (login_id, password, role, full_name, email) VALUES (?, ?, "student", ?, ?)',
-      [login_id, hashedPassword, full_name, email]
-    );
-
-    await conn.execute(
-      'INSERT INTO students (user_id, scholar_no, branch, section) VALUES (?, ?, ?, ?)',
-      [userResult.insertId, scholar_no, branch, section]
-    );
-
-    // Clean up OTP
-    await conn.execute('DELETE FROM email_otps WHERE email = ?', [email]);
-
-    await conn.commit();
-    logger.info('Student registered via OTP', { login_id, scholar_no, email });
-
-    res.status(201).json({ success: true, message: 'Registration successful. Please login.' });
-  } catch (err) {
-    await conn.rollback();
-    logger.error('Registration error', { error: err.message });
-    res.status(500).json({ success: false, message: 'Registration failed' });
-  } finally {
-    conn.release();
-  }
-};
-
-// ─── Student Registration (legacy — kept for backward compat) ─────────────────
 const registerStudent = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -466,8 +352,6 @@ module.exports = {
   logout,
   refreshAccessToken,
   getProfile,
-  sendOtp,
-  verifyOtpAndRegister,
   changePassword,
   deleteAccount,
   createStaff,

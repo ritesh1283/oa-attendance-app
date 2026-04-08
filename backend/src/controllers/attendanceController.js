@@ -161,25 +161,17 @@ const exportAttendanceExcel = async (req, res) => {
 
     let query = `
       SELECT s.scholar_no, u.full_name, s.branch, s.section,
-             IFNULL(a.status, 'absent') as status,
              a.marked_at, a.face_match_score, a.is_extended
-      FROM students s
+      FROM attendance a
+      JOIN students s ON a.student_id = s.id
       JOIN users u ON s.user_id = u.id
-      LEFT JOIN attendance a ON a.student_id = s.id AND a.oa_session_id = ?
+      WHERE a.oa_session_id = ? AND a.status = 'present'
     `;
     const params = [session_id];
 
-    // Filter by branches eligible for this OA
-    const oaBranches = typeof session[0].branches === 'string'
-      ? JSON.parse(session[0].branches)
-      : session[0].branches;
-
     if (branch) {
-      query += ' WHERE s.branch = ?';
+      query += ' AND s.branch = ?';
       params.push(branch);
-    } else if (oaBranches && oaBranches.length) {
-      query += ` WHERE s.branch IN (${oaBranches.map(() => '?').join(',')})`;
-      params.push(...oaBranches);
     }
 
     query += ' ORDER BY s.branch, s.section, u.full_name';
@@ -206,7 +198,7 @@ const exportAttendanceExcel = async (req, res) => {
       sheet.addRow([`Branch: ${branchName}`, '', '', '', '']);
       sheet.addRow([]);
 
-      sheet.addRow(['Scholar No', 'Full Name', 'Section', 'Status', 'Marked At', 'Match Score', 'Is Extended']);
+      sheet.addRow(['Scholar No', 'Full Name', 'Section', 'Marked At', 'Match Score', 'Is Extended']);
 
       // Style header row
       const headerRow = sheet.getRow(5);
@@ -214,20 +206,14 @@ const exportAttendanceExcel = async (req, res) => {
       headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
 
       rows.forEach(r => {
-        const row = sheet.addRow([
+        sheet.addRow([
           r.scholar_no,
           r.full_name,
           r.section,
-          r.status.toUpperCase(),
           r.marked_at ? new Date(r.marked_at).toLocaleString() : '-',
           r.face_match_score ? `${r.face_match_score.toFixed(1)}%` : '-',
           r.is_extended ? 'Yes' : 'No',
         ]);
-        if (r.status === 'absent') {
-          row.getCell(4).font = { color: { argb: 'FFDC2626' } };
-        } else {
-          row.getCell(4).font = { color: { argb: 'FF16A34A' } };
-        }
       });
 
       sheet.columns.forEach(col => { col.width = 20; });
@@ -237,9 +223,7 @@ const exportAttendanceExcel = async (req, res) => {
     const summary = workbook.addWorksheet('Summary');
     summary.addRow(['OA Title', session[0].title]);
     summary.addRow(['Date', session[0].oa_date]);
-    summary.addRow(['Total Students', students.length]);
-    summary.addRow(['Present', students.filter(s => s.status === 'present').length]);
-    summary.addRow(['Absent', students.filter(s => s.status === 'absent').length]);
+    summary.addRow(['Total Present', students.length]);
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename=OA_Attendance_${session_id}_${Date.now()}.xlsx`);

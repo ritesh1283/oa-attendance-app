@@ -116,20 +116,6 @@ const migrate = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // ── Email OTPs ────────────────────────────────────────────────────────────
-    await conn.execute(`
-      CREATE TABLE IF NOT EXISTS email_otps (
-        id         INT AUTO_INCREMENT PRIMARY KEY,
-        email      VARCHAR(150) NOT NULL,
-        otp        VARCHAR(6)   NOT NULL,
-        expires_at DATETIME     NOT NULL,
-        verified   TINYINT(1)   DEFAULT 0,
-        created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_email (email),
-        INDEX idx_expires (expires_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
     console.log('✅ All tables created successfully');
   } catch (err) {
     console.error('❌ Migration failed:', err.message);

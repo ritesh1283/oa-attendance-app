@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { FiDownload, FiFilter, FiCalendar, FiSearch, FiUsers } from 'react-icons/fi';
 import { format } from 'date-fns';
 
-const BRANCHES = ['', 'CS', 'IT', 'ECE', 'EE', 'ME', 'CE', 'CH'];
+const BRANCHES = ['', 'CS', 'MDS', 'ECE', 'EE', 'ME', 'Civil Eng', 'Chem Eng'];
 
 const CoordinatorDashboard = () => {
   const [activeTab, setActiveTab] = useState('sessions');
@@ -48,25 +48,23 @@ const CoordinatorDashboard = () => {
     } catch {}
   };
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (!selectedSession) return;
-    const params = new URLSearchParams();
-    if (exportBranch) params.append('branch', exportBranch);
-    const url = `${import.meta.env.VITE_API_URL}/attendance/export/${selectedSession.id}?${params}`;
-    const token = localStorage.getItem('accessToken');
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => {
-        if (!res.ok) throw new Error('Export failed');
-        return res.blob();
-      })
-      .then(blob => {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `OA_${selectedSession.title}_${Date.now()}.xlsx`;
-        a.click();
-        toast.success('Excel downloaded!');
-      })
-      .catch(() => toast.error('Export failed'));
+    try {
+      const res = await api.get(`/attendance/export/${selectedSession.id}`, {
+        params: exportBranch ? { branch: exportBranch } : {},
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `OA_${selectedSession.title}_${Date.now()}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('Excel downloaded!');
+    } catch (err) {
+      toast.error('Export failed');
+    }
   };
 
   const fetchStudents = async () => {

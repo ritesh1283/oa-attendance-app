@@ -29,23 +29,9 @@ router.post('/auth/register',
   authCtrl.registerStudent
 );
 
-// Email OTP flow
-router.post('/auth/send-otp', authCtrl.sendOtp);
-router.post('/auth/verify-otp-register',
-  [
-    body('login_id').notEmpty().trim().isLength({ min: 3, max: 50 }),
-    body('password').isLength({ min: 6, max: 100 }),
-    body('full_name').notEmpty().trim().isLength({ min: 2, max: 100 }),
-    body('scholar_no').notEmpty().trim().isLength({ min: 2, max: 20 }),
-    body('branch').notEmpty().trim(),
-    body('section').notEmpty().trim(),
-    body('email').isEmail(),
-    body('otp').notEmpty().isLength({ min: 6, max: 6 }),
-  ],
-  authCtrl.verifyOtpAndRegister
-);
 
-router.post('/auth/login',    loginLimiter, [body('login_id').notEmpty(), body('password').notEmpty()], authCtrl.login);
+
+router.post('/auth/login', [body('login_id').notEmpty(), body('password').notEmpty()], authCtrl.login);
 router.post('/auth/logout',   authenticate, authCtrl.logout);
 router.post('/auth/refresh',  authCtrl.refreshAccessToken);
 router.get('/auth/profile',   authenticate, authCtrl.getProfile);
