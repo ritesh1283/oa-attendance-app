@@ -228,45 +228,24 @@ const changePassword = async (req, res) => {
   }
 };
 
-// ─── Delete Account (student self-delete) ─────────────────────────────────────
-const deleteAccount = async (req, res) => {
-  const { scholar_no, password } = req.body;
-
-  if (!scholar_no || !password) {
-    return res.status(400).json({ success: false, message: 'Scholar number and password are required' });
-  }
+// ─── Delete Account (admin/staff) ─────────────────────────────────────────────
+const deleteStudent = async (req, res) => {
+  const { studentId } = req.params;
 
   try {
-    // Verify it's a student
-    if (req.user.role !== 'student') {
-      return res.status(403).json({ success: false, message: 'Only students can delete their own accounts' });
-    }
+    const [rows] = await pool.execute('SELECT user_id FROM students WHERE id = ?', [studentId]);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Student not found.' });
 
-    // Verify password
-    const [users] = await pool.execute('SELECT id, password FROM users WHERE id = ?', [req.user.id]);
-    if (!users.length) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
+    const userId = rows[0].user_id;
 
-    const isMatch = await bcrypt.compare(password, users[0].password);
-    if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Incorrect password' });
-    }
+    // Delete user (cascade will delete student and attendance)
+    await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
 
-    // Verify scholar number matches
-    const [studentData] = await pool.execute('SELECT scholar_no FROM students WHERE user_id = ?', [req.user.id]);
-    if (!studentData.length || studentData[0].scholar_no !== scholar_no) {
-      return res.status(400).json({ success: false, message: 'Scholar number does not match' });
-    }
-
-    // Delete user (cascades to students, refresh_tokens, etc.)
-    await pool.execute('DELETE FROM users WHERE id = ?', [req.user.id]);
-
-    logger.info('Account deleted', { userId: req.user.id, scholar_no });
-    res.json({ success: true, message: 'Account deleted successfully' });
+    logger.info('Student account deleted by admin/staff', { deletedStudentId: studentId, deletedBy: req.user.id });
+    res.json({ success: true, message: 'Student account deleted successfully.' });
   } catch (err) {
-    logger.error('Delete account error', { error: err.message });
-    res.status(500).json({ success: false, message: 'Failed to delete account' });
+    logger.error('Delete student account error', { error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to delete student account.' });
   }
 };
 
@@ -346,6 +325,76 @@ const getStaffList = async (req, res) => {
   }
 };
 
+// ─── Force Password Reset (TPO Admin Only) ──────────────────────────────────
+const forcePasswordReset = async (req, res) => {
+  const { userId } = req.params;
+  const { new_password } = req.body;
+
+  if (!new_password || new_password.length < 6) {
+    return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+  }
+
+  try {
+    const [users] = await pool.execute('SELECT id FROM users WHERE id = ?', [userId]);
+    if (!users.length) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const hashedNew = await bcrypt.hash(new_password, 12);
+    await pool.execute('UPDATE users SET password = ? WHERE id = ?', [hashedNew, userId]);
+
+    logger.info('Password forcefully reset by admin', { targetUser: userId, admin: req.user.id });
+    res.json({ success: true, message: 'User password reset successfully' });
+  } catch (err) {
+    logger.error('Force password reset error', { error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to reset user password' });
+  }
+};
+
+// ─── Edit Student Details (TPO Admin / Coordinator) ───────────────────────────
+const updateStudentDetails = async (req, res) => {
+  const { id } = req.params;
+  const { full_name, scholar_no, branch, section } = req.body;
+
+  if (!full_name || !scholar_no || !branch || !section) {
+    return res.status(400).json({ success: false, message: 'All student fields are required' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [students] = await conn.execute('SELECT user_id FROM students WHERE id = ?', [id]);
+    if (!students.length) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+    const userId = students[0].user_id;
+
+    // Check for duplicate scholar number across OTHER students
+    const [existingScholar] = await conn.execute(
+      'SELECT id FROM students WHERE scholar_no = ? AND id != ?',
+      [scholar_no, id]
+    );
+    if (existingScholar.length) {
+      return res.status(409).json({ success: false, message: 'Scholar number already exists for another student' });
+    }
+
+    await conn.execute('UPDATE users SET full_name = ? WHERE id = ?', [full_name, userId]);
+    await conn.execute(
+      'UPDATE students SET scholar_no = ?, branch = ?, section = ? WHERE id = ?',
+      [scholar_no, branch, section, id]
+    );
+
+    await conn.commit();
+    logger.info('Student details updated', { studentId: id, updatedBy: req.user.id });
+    res.json({ success: true, message: 'Student details updated successfully' });
+  } catch (err) {
+    await conn.rollback();
+    logger.error('Update student details error', { error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to update student details' });
+  } finally {
+    conn.release();
+  }
+};
+
 module.exports = {
   registerStudent,
   login,
@@ -353,8 +402,10 @@ module.exports = {
   refreshAccessToken,
   getProfile,
   changePassword,
-  deleteAccount,
+  deleteStudent,
   createStaff,
   deleteStaff,
   getStaffList,
+  forcePasswordReset,
+  updateStudentDetails,
 };

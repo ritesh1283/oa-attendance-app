@@ -25,10 +25,19 @@ const FaceCapture = ({ onCapture, label = 'Capture Face', disabled = false }) =>
     if (!imgSrc) return;
     setCaptured(imgSrc);
 
-    // Convert base64 to blob
-    fetch(imgSrc)
-      .then(r => r.blob())
-      .then(blob => onCapture(blob, imgSrc));
+    // Robust base64 to blob conversion
+    try {
+      const byteString = atob(imgSrc.split(',')[1]);
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      const blob = new Blob([ab], { type: 'image/jpeg' });
+      onCapture(blob, imgSrc);
+    } catch (e) {
+      console.error('Failed to convert image', e);
+    }
   }, [onCapture, disabled]);
 
   const retake = () => {
@@ -40,17 +49,18 @@ const FaceCapture = ({ onCapture, label = 'Capture Face', disabled = false }) =>
     <div className="flex flex-col items-center gap-5 w-full relative z-0">
       {/* Camera/Image Container */}
       <div className="relative rounded-3xl overflow-hidden border border-white/10 w-full max-w-sm aspect-square bg-[#0d1321] shadow-[0_0_30px_rgba(0,0,0,0.5)] group">
-        {!captured ? (
+        <Webcam
+          ref={webcamRef}
+          audio={false}
+          screenshotFormat="image/jpeg"
+          videoConstraints={videoConstraints}
+          onUserMediaError={() => setPermError(true)}
+          className={`w-full h-full object-cover transition-opacity duration-300 ${captured ? 'invisible opacity-0 absolute' : 'visible opacity-100 relative'}`}
+          mirrored
+        />
+        
+        {!captured && (
           <>
-            <Webcam
-              ref={webcamRef}
-              audio={false}
-              screenshotFormat="image/jpeg"
-              videoConstraints={videoConstraints}
-              onUserMediaError={() => setPermError(true)}
-              className="w-full h-full object-cover transition-opacity duration-300"
-              mirrored
-            />
             {/* Face guide overlay */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-[60%] h-[60%] max-w-[240px] max-h-[240px] rounded-full border-2 border-[#f26644]/40 border-dashed shadow-[0_0_20px_rgba(242,102,68,0.15)]" />
@@ -62,8 +72,10 @@ const FaceCapture = ({ onCapture, label = 'Capture Face', disabled = false }) =>
               </div>
             </div>
           </>
-        ) : (
-          <div className="w-full h-full relative">
+        )}
+        
+        {captured && (
+          <div className="absolute inset-0 w-full h-full">
             <img src={captured} alt="Captured" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-emerald-500/10 mix-blend-overlay pointer-events-none"></div>
           </div>

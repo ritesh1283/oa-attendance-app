@@ -3,8 +3,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import FaceCapture from '../../components/common/FaceCapture';
+import Skeleton from '../../components/common/Skeleton';
 import toast from 'react-hot-toast';
-import { FiCheckCircle, FiAlertCircle, FiCalendar, FiClock, FiTrash2, FiEye, FiEyeOff, FiHash, FiUser, FiCamera, FiList, FiSettings } from 'react-icons/fi';
+import { FiCheckCircle, FiAlertCircle, FiCalendar, FiClock, FiUser, FiCamera, FiList, FiSettings } from 'react-icons/fi';
 import { format } from 'date-fns';
 
 const StudentDashboard = () => {
@@ -21,15 +22,25 @@ const StudentDashboard = () => {
   const [showDelPass, setShowDelPass] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  const [historyPage, setHistoryPage] = useState(1);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
+
   useEffect(() => {
     setMounted(true);
     fetchHistory();
   }, []);
 
-  const fetchHistory = async () => {
+  const fetchHistory = async (page = 1) => {
+    setLoading(true);
     try {
-      const res = await api.get('/attendance/history');
-      setHistory(res.data.data);
+      const res = await api.get(`/attendance/history?page=${page}&limit=10`);
+      if (page === 1) {
+        setHistory(res.data.data);
+      } else {
+        setHistory(prev => [...prev, ...res.data.data]);
+      }
+      setHasMoreHistory(page < res.data.meta.totalPages);
+      setHistoryPage(page);
     } catch {}
     setLoading(false);
   };
@@ -50,22 +61,7 @@ const StudentDashboard = () => {
     }
   };
 
-  const handleDeleteAccount = async (e) => {
-    e.preventDefault();
-    setDeleting(true);
-    try {
-      await api.delete('/auth/account', {
-        data: { scholar_no: deleteForm.scholar_no, password: deleteForm.password }
-      });
-      toast.success('Account deleted successfully');
-      await logout();
-      navigate('/login');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete account');
-    } finally {
-      setDeleting(false);
-    }
-  };
+  // Removed handleDeleteAccount due to staff-only requirement
 
   const faceRegistered = user?.face_registered;
   const presentCount = history.filter(h => h.status === 'present').length;
@@ -247,9 +243,10 @@ const StudentDashboard = () => {
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest ml-2 mb-4">Past Sessions</h3>
                 
-                {loading ? (
-                  <div className="flex justify-center py-12">
-                    <svg className="animate-spin h-8 w-8 text-[#f26644]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                {loading && historyPage === 1 ? (
+                  <div className="space-y-3">
+                    <Skeleton className="w-full h-24 rounded-2xl" />
+                    <Skeleton className="w-full h-24 rounded-2xl" />
                   </div>
                 ) : history.length === 0 ? (
                   <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-12 text-center shadow-lg flex flex-col items-center">
@@ -269,19 +266,29 @@ const StudentDashboard = () => {
                             <span className="text-gray-600">•</span>
                             <span className="flex items-center gap-1.5"><FiClock size={12} className="text-gray-500"/>{item.start_time?.slice(0,5)} - {item.end_time?.slice(0,5)}</span>
                           </div>
-                          {item.is_extended && <span className="inline-block mt-2 bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Extended Session</span>}
+                          {item.is_extended ? <span className="inline-block mt-2 bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Extended Session</span> : null}
                         </div>
                         
                         <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t border-white/5 sm:border-t-0">
                           <span className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border ${item.status === 'present' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-[#f26644]/10 text-[#f26644] border-[#f26644]/20'}`}>
                             {item.status === 'present' ? '✓ Present' : '✗ Absent'}
                           </span>
-                          {item.face_match_score && (
+                          {item.face_match_score ? (
                             <p className="text-[10px] text-gray-500 mt-2 font-medium">{item.face_match_score.toFixed(0)}% Match</p>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     ))}
+
+                    {hasMoreHistory && history.length > 0 && (
+                      <button
+                        onClick={() => fetchHistory(historyPage + 1)}
+                        disabled={loading}
+                        className="w-full mt-4 bg-white/5 hover:bg-white/10 text-white font-medium py-2 rounded-xl transition-colors border border-white/10"
+                      >
+                        {loading ? 'Loading...' : 'Load More'}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -317,101 +324,13 @@ const StudentDashboard = () => {
                   </div>
                 </div>
 
-                {/* Danger Zone */}
-                <div className="bg-red-500/10 border border-red-500/20 backdrop-blur-xl shadow-lg rounded-3xl p-6">
-                  <h3 className="font-bold text-red-400 text-lg flex items-center gap-2 mb-2">
-                    <FiTrash2 /> Danger Zone
-                  </h3>
-                  <p className="text-sm text-red-200/70 leading-relaxed mb-5 max-w-md">
-                    Permanently delete your account. All your data, including face patterns and attendance history, will be erased instantly. This cannot be undone.
-                  </p>
-                  <button
-                    className="bg-red-500/20 hover:bg-red-500 border border-red-500/50 text-red-400 hover:text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg"
-                    onClick={() => setShowDeleteModal(true)}
-                  >
-                    Delete My Account
-                  </button>
-                </div>
+                {/* Danger Zone Removed */}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* --- DELETE ACCOUNT MODAL --- */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowDeleteModal(false)} />
-          
-          {/* Modal Content */}
-          <div className="bg-[#1d2d44] border border-white/10 rounded-[2rem] shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-slide-up">
-            <div className="p-8">
-              
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/30">
-                  <FiTrash2 size={24} className="text-red-400" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-xl text-white">Delete Account</h3>
-                  <p className="text-red-300 text-xs mt-1">This action is permanent.</p>
-                </div>
-              </div>
-
-              <form onSubmit={handleDeleteAccount} className="space-y-5">
-                {/* Scholar Input */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Confirm Scholar No.</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500">
-                      <FiHash size={16} />
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Enter your scholar number"
-                      className="w-full bg-[#0d1321]/80 border border-white/10 text-white font-mono rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 transition-all placeholder-gray-600 text-sm"
-                      value={deleteForm.scholar_no}
-                      onChange={e => setDeleteForm(p => ({ ...p, scholar_no: e.target.value }))}
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Password Input */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Password</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500">
-                      <FiEye size={16} />
-                    </div>
-                    <input
-                      type={showDelPass ? 'text' : 'password'}
-                      placeholder="Enter your password"
-                      className="w-full bg-[#0d1321]/80 border border-white/10 text-white rounded-xl py-3 pl-10 pr-12 focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 transition-all placeholder-gray-600 text-sm"
-                      value={deleteForm.password}
-                      onChange={e => setDeleteForm(p => ({ ...p, password: e.target.value }))}
-                      required
-                    />
-                    <button type="button" onClick={() => setShowDelPass(p => !p)} className="absolute inset-y-0 right-4 flex items-center text-gray-500 hover:text-white transition-colors">
-                      {showDelPass ? <FiEyeOff size={16} /> : <FiEye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button type="button" className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl font-medium transition-colors text-sm border border-white/10" onClick={() => setShowDeleteModal(false)}>
-                    Cancel
-                  </button>
-                  <button type="submit" className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold transition-colors shadow-lg flex justify-center items-center text-sm" disabled={deleting}>
-                    {deleting ? <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : 'Delete Forever'}
-                  </button>
-                </div>
-              </form>
-
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };

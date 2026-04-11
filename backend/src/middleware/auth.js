@@ -59,6 +59,7 @@ const isStudent      = authorize('student');
 const isTpoAdmin     = authorize('tpo_admin');
 const isTpoVolunteer = authorize('tpo_volunteer', 'tpo_admin');
 const isCoordinator  = authorize('tpo_coordinator', 'tpo_admin');
+const isTpoAdminOrCoordinator = authorize('tpo_admin', 'tpo_coordinator');
 const isTpoAny       = authorize('tpo_admin', 'tpo_volunteer', 'tpo_coordinator');
 
-module.exports = { authenticate, authorize, isStudent, isTpoAdmin, isTpoVolunteer, isCoordinator, isTpoAny };
+module.exports = { authenticate, authorize, isStudent, isTpoAdmin, isTpoVolunteer, isCoordinator, isTpoAdminOrCoordinator, isTpoAny };

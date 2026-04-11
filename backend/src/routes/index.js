@@ -9,7 +9,7 @@ const attendCtrl = require('../controllers/attendanceController');
 
 const {
   authenticate, isStudent, isTpoAdmin,
-  isTpoVolunteer, isCoordinator, isTpoAny
+  isTpoVolunteer, isCoordinator, isTpoAny, isTpoAdminOrCoordinator
 } = require('../middleware/auth');
 const { loginLimiter, faceLimiter } = require('../middleware/errorHandler');
 const { uploadMemory, uploadDisk }  = require('../middleware/upload');
@@ -39,8 +39,11 @@ router.get('/auth/profile',   authenticate, authCtrl.getProfile);
 // Change password (all authenticated users)
 router.patch('/auth/change-password', authenticate, authCtrl.changePassword);
 
-// Delete account (student self-delete)
-router.delete('/auth/account', authenticate, isStudent, authCtrl.deleteAccount);
+// Force change user password (TPO Admin)
+router.patch('/auth/user/:userId/password', authenticate, isTpoAdmin, authCtrl.forcePasswordReset);
+
+// Delete account (Staff/Admin)
+router.delete('/auth/student/:studentId', authenticate, isTpoAny, authCtrl.deleteStudent);
 
 // Staff management (TPO Admin only)
 router.get('/auth/staff',           authenticate, isTpoAdmin, authCtrl.getStaffList);
@@ -63,7 +66,7 @@ router.post('/face/verify',
 );
 
 router.patch('/face/reset/:studentId',
-  authenticate, isTpoAdmin,
+  authenticate, isTpoAdminOrCoordinator,
   faceCtrl.resetFaceRegistration
 );
 
@@ -109,23 +112,53 @@ router.get('/attendance/stats/dashboard',    authenticate, isTpoAdmin,  attendCt
 // ════════════════════════════════════════════════════
 // STUDENT MANAGEMENT
 // ════════════════════════════════════════════════════
+router.put('/students/:id', authenticate, isTpoAdminOrCoordinator, authCtrl.updateStudentDetails);
+
 router.get('/students', authenticate, isTpoAny, async (req, res) => {
-  const { branch, section, search } = req.query;
+  const { branch, section, search, page = 1, limit = 20 } = req.query;
   try {
+    const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
     let q = `
       SELECT s.id, s.scholar_no, s.branch, s.section, s.face_registered,
-             u.full_name, u.login_id, u.is_active
+             u.full_name, u.login_id, u.is_active, u.id as user_id
       FROM students s JOIN users u ON s.user_id = u.id WHERE 1=1
     `;
+    let countQ = `SELECT COUNT(*) as total FROM students s JOIN users u ON s.user_id = u.id WHERE 1=1`;
     const params = [];
-    if (branch)  { q += ' AND s.branch = ?';  params.push(branch); }
-    if (section) { q += ' AND s.section = ?'; params.push(section); }
-    if (search)  { q += ' AND (u.full_name LIKE ? OR s.scholar_no LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
-    q += ' ORDER BY s.branch, s.section, u.full_name';
 
-    const [rows] = await require('../config/db').pool.execute(q, params);
-    res.json({ success: true, data: rows });
+    if (branch)  { 
+      q += ' AND s.branch = ?'; 
+      countQ += ' AND s.branch = ?';
+      params.push(branch); 
+    }
+    if (section) { 
+      q += ' AND s.section = ?'; 
+      countQ += ' AND s.section = ?';
+      params.push(section); 
+    }
+    if (search)  { 
+      const searchStr = '%' + search + '%';
+      q += ' AND (u.full_name LIKE ? OR s.scholar_no LIKE ?)'; 
+      countQ += ' AND (u.full_name LIKE ? OR s.scholar_no LIKE ?)';
+      params.push(searchStr, searchStr); 
+    }
+
+    q += ' ORDER BY s.branch, s.section, u.full_name LIMIT ? OFFSET ?';
+
+    const [rows] = await require('../config/db').pool.execute(q, [...params, parseInt(limit), offset].map(String));
+    const [[{ total }]] = await require('../config/db').pool.execute(countQ, params);
+
+    res.json({ 
+      success: true, 
+      data: rows,
+      meta: {
+        totalCount: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: parseInt(page)
+      }
+    });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: 'Failed to fetch students' });
   }
 });

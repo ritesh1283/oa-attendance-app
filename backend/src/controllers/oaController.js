@@ -53,9 +53,27 @@ const getOASessions = async (req, res) => {
     if (end_date) { query += ' AND os.oa_date <= ?'; params.push(end_date); }
     if (status) { query += ' AND os.status = ?'; params.push(status); }
 
-    query += ' ORDER BY os.oa_date DESC, os.start_time DESC';
+    // Pagination
+    const pageStr = req.query.page || '1';
+    const limitStr = req.query.limit || '10';
+    const page = Math.max(1, parseInt(pageStr));
+    const limit = parseInt(limitStr);
+    const offset = (page - 1) * limit;
 
-    const [sessions] = await pool.execute(query, params);
+    query += ' ORDER BY os.oa_date DESC, os.start_time DESC LIMIT ? OFFSET ?';
+    
+    // Count query
+    let countQuery = `
+      SELECT COUNT(*) as total FROM oa_sessions os JOIN users u ON os.created_by = u.id WHERE 1=1
+    `;
+    const countParams = [];
+    if (date) { countQuery += ' AND os.oa_date = ?'; countParams.push(date); }
+    if (start_date) { countQuery += ' AND os.oa_date >= ?'; countParams.push(start_date); }
+    if (end_date) { countQuery += ' AND os.oa_date <= ?'; countParams.push(end_date); }
+    if (status) { countQuery += ' AND os.status = ?'; countParams.push(status); }
+
+    const [[{ total }]] = await pool.execute(countQuery, countParams);
+    const [sessions] = await pool.execute(query, [...params, String(limit), String(offset)]);
 
     // Parse JSON fields
     const parsed = sessions.map(s => ({
@@ -64,8 +82,17 @@ const getOASessions = async (req, res) => {
       sections: typeof s.sections === 'string' ? JSON.parse(s.sections) : s.sections,
     }));
 
-    await setCache(cacheKey, parsed, 300); // cache 5 min
-    res.json({ success: true, data: parsed });
+    const response = {
+      success: true, 
+      data: parsed,
+      meta: {
+        totalCount: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page
+      }
+    };
+    await setCache(cacheKey, response, 30); // cache 30s
+    res.json(response);
   } catch (err) {
     logger.error('Get OA sessions error', { error: err.message });
     res.status(500).json({ success: false, message: 'Failed to fetch OA sessions' });
@@ -137,11 +164,22 @@ const extendOASession = async (req, res) => {
     const oaStart = new Date(`${session.oa_date}T${session.start_time}`);
     const maxEnd = new Date(oaStart.getTime() + maxHours * 60 * 60 * 1000);
 
-    // Calculate new extended_until from the current end time or existing extension
-    const currentEnd = session.extended_until
-      ? new Date(session.extended_until)
-      : new Date(`${session.oa_date}T${session.end_time}`);
-    const newEnd = new Date(currentEnd.getTime() + minutes * 60 * 1000);
+    // Properly calculate extended_until string combining dates
+    // If we parse the date string manually, we avoid timezone issues
+    let currentEndMs;
+    if (session.extended_until) {
+      currentEndMs = new Date(session.extended_until).getTime();
+    } else {
+      // session.oa_date might be an object if mysql returns dates, pad and parse
+      let dateStr = session.oa_date;
+      if (typeof dateStr === 'object') {
+        const offset = dateStr.getTimezoneOffset() * 60000;
+        dateStr = (new Date(dateStr.getTime() - offset)).toISOString().split('T')[0];
+      }
+      currentEndMs = new Date(`${dateStr}T${session.end_time}`).getTime();
+    }
+
+    const newEnd = new Date(currentEndMs + minutes * 60 * 1000);
 
     if (newEnd > maxEnd) {
       return res.status(400).json({
@@ -174,10 +212,12 @@ const extendOASession = async (req, res) => {
 const getActiveOASessions = async (req, res) => {
   try {
     const now = new Date();
-
-    const today = now.toLocaleDateString('en-CA'); // YYYY-MM-DD
-    const currentTime = now.toTimeString().slice(0, 8); // HH:MM:SS
-    const nowDatetime = now.toISOString().slice(0, 19).replace('T', ' '); // YYYY-MM-DD HH:MM:SS
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(now.getTime() - tzOffset).toISOString().slice(0, 19); // YYYY-MM-DDTHH:MM:SS
+    
+    const today = localISOTime.split('T')[0]; // YYYY-MM-DD
+    const currentTime = localISOTime.split('T')[1]; // HH:MM:SS
+    const nowDatetime = localISOTime.replace('T', ' '); // YYYY-MM-DD HH:MM:SS
 
     const [sessions] = await pool.execute(
       `SELECT * FROM oa_sessions

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import FaceCapture from '../../components/common/FaceCapture';
+import Skeleton from '../../components/common/Skeleton';
 import toast from 'react-hot-toast';
 import { FiSearch, FiCheckCircle, FiXCircle, FiClock, FiChevronDown, FiUserCheck, FiList } from 'react-icons/fi';
 import { format } from 'date-fns';
@@ -17,6 +18,12 @@ const VolunteerDashboard = () => {
   const [activeTab, setActiveTab] = useState('mark');
   const [showExtendMenu, setShowExtendMenu] = useState(false);
   const [mounted, setMounted] = useState(false);
+  
+  // Pagination and Skeleton
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
+  const [attendancePage, setAttendancePage] = useState(1);
+  const [hasMoreAttendance, setHasMoreAttendance] = useState(true);
 
   useEffect(() => {
     setMounted(true);
@@ -24,17 +31,31 @@ const VolunteerDashboard = () => {
   }, []);
 
   const fetchActiveSessions = async () => {
+    setLoadingSessions(true);
     try {
       const res = await api.get('/oa/active');
       setActiveSessions(res.data.data);
-    } catch {}
+    } catch {
+    } finally {
+      setLoadingSessions(false);
+    }
   };
 
-  const fetchAttendance = async (sessionId) => {
+  const fetchAttendance = async (sessionId, page = 1) => {
+    setLoadingAttendance(true);
     try {
-      const res = await api.get(`/attendance/oa/${sessionId}`);
-      setAttendanceList(res.data.data);
-    } catch {}
+      const res = await api.get(`/attendance/oa/${sessionId}?page=${page}&limit=10`);
+      if (page === 1) {
+        setAttendanceList(res.data.data);
+      } else {
+        setAttendanceList(prev => [...prev, ...res.data.data]);
+      }
+      setHasMoreAttendance(page < res.data.meta.totalPages);
+      setAttendancePage(page);
+    } catch {
+    } finally {
+      setLoadingAttendance(false);
+    }
   };
 
   const selectSession = (session) => {
@@ -140,6 +161,8 @@ const VolunteerDashboard = () => {
         `}
       </style>
 
+      {/* Adding Skeleton Component reference (Ensure it's imported or locally defined if needed. We'll inline it for safety or rely on the global one if we imported it. Actually, wait! I didn't import it!) */}
+
       <div className="min-h-screen bg-overlay text-white font-sans relative overflow-x-hidden pb-12">
         {/* Decorative Background */}
         <div className="absolute inset-0 bg-dots opacity-40 pointer-events-none" />
@@ -178,7 +201,12 @@ const VolunteerDashboard = () => {
                   <div className="space-y-4">
                     <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest ml-2 mb-4">Active Sessions</h2>
                     
-                    {activeSessions.length === 0 ? (
+                    {loadingSessions ? (
+                      <div className="space-y-3">
+                        <Skeleton className="w-full h-24 rounded-3xl" />
+                        <Skeleton className="w-full h-24 rounded-3xl" />
+                      </div>
+                    ) : activeSessions.length === 0 ? (
                       <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] p-12 text-center shadow-2xl flex flex-col items-center">
                         <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
                           <FiClock size={28} className="text-gray-500" />
@@ -346,7 +374,12 @@ const VolunteerDashboard = () => {
                     </div>
                     
                     <div className="space-y-3">
-                      {attendanceList.map(a => (
+                      {loadingAttendance && attendancePage === 1 ? (
+                        <div className="space-y-3">
+                          <Skeleton className="w-full h-20 rounded-2xl" />
+                          <Skeleton className="w-full h-20 rounded-2xl" />
+                        </div>
+                      ) : attendanceList.map(a => (
                         <div key={a.id} className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg rounded-2xl p-4 flex flex-row items-center justify-between hover:bg-white/10 transition-colors">
                           <div>
                             <p className="font-bold text-white text-sm">{a.full_name}</p>
@@ -354,18 +387,28 @@ const VolunteerDashboard = () => {
                           </div>
                           <div className="text-right flex flex-col items-end">
                             <div className="flex gap-2">
-                              {a.is_extended && <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Extended</span>}
+                              {a.is_extended ? <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Extended</span> : null}
                               <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Present</span>
                             </div>
-                            <p className="text-[10px] text-gray-500 mt-1.5 font-medium">{a.face_match_score?.toFixed(0)}% Match</p>
+                            {a.face_match_score ? <p className="text-[10px] text-gray-500 mt-1.5 font-medium">{a.face_match_score.toFixed(0)}% Match</p> : null}
                           </div>
                         </div>
                       ))}
                       
-                      {attendanceList.length === 0 && (
+                      {!loadingAttendance && attendanceList.length === 0 && (
                         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-10 text-center shadow-lg">
                           <p className="text-gray-400">No attendance marked yet</p>
                         </div>
+                      )}
+
+                      {hasMoreAttendance && attendanceList.length > 0 && (
+                        <button
+                          onClick={() => fetchAttendance(selectedSession.id, attendancePage + 1)}
+                          disabled={loadingAttendance}
+                          className="w-full mt-4 bg-white/5 hover:bg-white/10 text-white font-medium py-2 rounded-xl transition-colors border border-white/10"
+                        >
+                          {loadingAttendance ? 'Loading...' : 'Load More'}
+                        </button>
                       )}
                     </div>
                   </>

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Plus, Users, Calendar, Clock, Trash2, UserPlus, Eye, EyeOff, X,
-  LayoutDashboard, ClipboardList, GraduationCap, Shield, Loader2
+  Plus, Users, Calendar, Clock, Trash2, UserPlus, Eye, EyeOff, X, Key, Edit,
+  LayoutDashboard, ClipboardList, GraduationCap, Shield, Loader2, RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Skeleton from '../../components/common/Skeleton';
 import api from '../../utils/api';
 
 const BRANCHES = ['CS', 'MDS', 'ECE', 'EE', 'ME', 'Civil Eng', 'Chem Eng'];
@@ -28,6 +29,22 @@ export default function AdminDashboard() {
   const [showVolunteerModal, setShowVolunteerModal] = useState(false);
   const [showPass, setShowPass] = useState(false);
 
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+
+  const [showEditStudentModal, setShowEditStudentModal] = useState(false);
+  const [editStudentForm, setEditStudentForm] = useState({ id: '', full_name: '', scholar_no: '', branch: '', section: '' });
+
+  // Pagination and detailed loaders
+  const [sessionPage, setSessionPage] = useState(1);
+  const [hasMoreSessions, setHasMoreSessions] = useState(true);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+
+  const [studentPage, setStudentPage] = useState(1);
+  const [hasMoreStudents, setHasMoreStudents] = useState(true);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+
   const [createForm, setCreateForm] = useState({
     title: '', description: '', oa_date: '', start_time: '', end_time: '',
     branches: [], sections: [],
@@ -43,26 +60,42 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [sessRes, statsRes, studRes] = await Promise.all([
-        api.get('/oa'),
+      const [statsRes, volRes] = await Promise.all([
         api.get('/attendance/stats/dashboard'),
-        api.get('/students'),
+        api.get('/auth/staff').catch(() => ({ data: { data: [] } }))
       ]);
-      setSessions(sessRes.data.data);
       setStats(statsRes.data.data);
-      setStudents(studRes.data.data);
+      setVolunteers(volRes.data.data || []);
     } catch (err) {
       toast.error('Failed to load dashboard data');
     }
-    
-    // Fetch volunteers
-    try {
-      const res = await api.get('/auth/staff');
-      setVolunteers(res.data.data || []);
-    } catch (err) {
-      console.error(err);
-    }
     setLoading(false);
+    fetchSessionsList(1);
+    fetchStudentsList(1);
+  };
+
+  const fetchSessionsList = async (page = 1) => {
+    setLoadingSessions(true);
+    try {
+      const res = await api.get(`/oa?page=${page}&limit=10`);
+      if (page === 1) setSessions(res.data.data);
+      else setSessions(p => [...p, ...res.data.data]);
+      setHasMoreSessions(page < res.data.meta.totalPages);
+      setSessionPage(page);
+    } catch {}
+    setLoadingSessions(false);
+  };
+
+  const fetchStudentsList = async (page = 1) => {
+    setLoadingStudents(true);
+    try {
+      const res = await api.get(`/students?page=${page}&limit=20`);
+      if (page === 1) setStudents(res.data.data);
+      else setStudents(p => [...p, ...res.data.data]);
+      setHasMoreStudents(page < res.data.meta.totalPages);
+      setStudentPage(page);
+    } catch {}
+    setLoadingStudents(false);
   };
 
   const createSession = async (e) => {
@@ -113,6 +146,64 @@ export default function AdminDashboard() {
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete');
     }
+  };
+
+  const deleteStudent = async (studentId) => {
+    if (!window.confirm('Delete this student account entirely? This clears attendance as well.')) return;
+    try {
+      await api.delete(`/auth/student/${studentId}`);
+      toast.success('Student account deleted');
+      fetchStudentsList(1);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete student');
+    }
+  };
+
+  const resetStudentFace = async (studentId) => {
+    if (!window.confirm('Reset face registration for this student?')) return;
+    try {
+      await api.patch(`/face/reset/${studentId}`);
+      toast.success('Face setup reset successfully');
+      fetchStudentsList(1);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reset face');
+    }
+  };
+
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    try {
+      await api.patch(`/auth/user/${selectedUser.id}/password`, { new_password: newPassword });
+      toast.success('Password reset successfully');
+      setShowPasswordModal(false);
+      setNewPassword('');
+      setSelectedUser(null);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reset password');
+    }
+  };
+
+  const openPasswordModal = (user) => {
+    setSelectedUser({ id: user.user_id || user.id, name: user.full_name });
+    setNewPassword('');
+    setShowPasswordModal(true);
+  };
+
+  const handleEditStudent = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put(`/students/${editStudentForm.id}`, editStudentForm);
+      toast.success('Student updated successfully');
+      setShowEditStudentModal(false);
+      fetchStudentsList(studentPage);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update student');
+    }
+  };
+
+  const openEditStudentModal = (student) => {
+    setEditStudentForm({ id: student.id, full_name: student.full_name, scholar_no: student.scholar_no, branch: student.branch, section: student.section });
+    setShowEditStudentModal(true);
   };
 
   const tabs = [
@@ -282,7 +373,12 @@ export default function AdminDashboard() {
                   </motion.button>
                 </div>
 
-                {sessions.map((s, i) => (
+                {loadingSessions && sessionPage === 1 ? (
+                  <div className="space-y-4">
+                    <Skeleton className="w-full h-32 rounded-2xl bg-white/10" />
+                    <Skeleton className="w-full h-32 rounded-2xl bg-white/10" />
+                  </div>
+                ) : sessions.map((s, i) => (
                   <motion.div
                     key={s.id}
                     initial={{ opacity: 0, y: 20 }}
@@ -323,6 +419,16 @@ export default function AdminDashboard() {
                     </div>
                   </motion.div>
                 ))}
+                
+                {hasMoreSessions && sessions.length > 0 && (
+                  <button
+                    onClick={() => fetchSessionsList(sessionPage + 1)}
+                    disabled={loadingSessions}
+                    className="w-full py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl transition border border-white/10"
+                  >
+                    {loadingSessions ? 'Loading...' : 'Load More Sessions'}
+                  </button>
+                )}
                 {sessions.length === 0 && (
                   <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-10 text-center">
                     <p className="text-blue-200/70">No OA sessions yet. Create one!</p>
@@ -352,19 +458,29 @@ export default function AdminDashboard() {
                           <th className="px-6 py-4 text-left text-sm font-semibold text-blue-200">Branch</th>
                           <th className="px-6 py-4 text-left text-sm font-semibold text-blue-200">Section</th>
                           <th className="px-6 py-4 text-left text-sm font-semibold text-blue-200">Face</th>
+                          <th className="px-6 py-4 text-right text-sm font-semibold text-blue-200">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {students.map((s, i) => (
+                        {loadingStudents && studentPage === 1 ? (
+                          <tr>
+                            <td colSpan="6" className="px-6 py-4">
+                              <div className="space-y-3">
+                                <Skeleton className="w-full h-10 bg-white/10 rounded" />
+                                <Skeleton className="w-full h-10 bg-white/10 rounded" />
+                              </div>
+                            </td>
+                          </tr>
+                        ) : students.map((s, i) => (
                           <motion.tr
                             key={s.id}
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.3, delay: i * 0.05 }}
-                            className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                            className="border-b border-white/5 hover:bg-white/5 transition-colors group"
                           >
                             <td className="px-6 py-4 text-white/90 font-mono text-sm">{s.scholar_no}</td>
-                            <td className="px-6 py-4 text-white">{s.full_name}</td>
+                            <td className="px-6 py-4 text-white hover:text-orange-400 transition-colors">{s.full_name}</td>
                             <td className="px-6 py-4">
                               <span className="px-3 py-1 bg-white/10 border border-white/20 rounded-lg text-xs text-blue-200">
                                 {s.branch}
@@ -378,17 +494,37 @@ export default function AdminDashboard() {
                                 <span className="text-red-400 text-xs">✗ Pending</span>
                               )}
                             </td>
+                            <td className="px-6 py-4 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex gap-2 justify-end">
+                                <button className="p-1.5 tooltip-trigger rounded bg-blue-500/20 text-blue-300 hover:bg-blue-500/40 transition-colors" title="Reset Face" onClick={() => resetStudentFace(s.id)}>
+                                  <RefreshCw className="size-4" />
+                                </button>
+                                <button className="p-1.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/40 transition-colors" title="Delete Student" onClick={() => deleteStudent(s.id)}>
+                                  <Trash2 className="size-4" />
+                                </button>
+                              </div>
+                            </td>
                           </motion.tr>
                         ))}
-                        {students.length === 0 && (
+                        {!loadingStudents && students.length === 0 && (
                           <tr>
-                            <td colSpan="5" className="px-6 py-12 text-center text-blue-200/70">
+                            <td colSpan="6" className="px-6 py-12 text-center text-blue-200/70">
                               No students found.
                             </td>
                           </tr>
                         )}
                       </tbody>
                     </table>
+                    
+                    {hasMoreStudents && students.length > 0 && (
+                      <button
+                        onClick={() => fetchStudentsList(studentPage + 1)}
+                        disabled={loadingStudents}
+                        className="w-full py-4 text-sm bg-white/5 hover:bg-white/10 text-white transition border-t border-white/10"
+                      >
+                        {loadingStudents ? 'Loading...' : 'Load More Students'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </motion.div>
