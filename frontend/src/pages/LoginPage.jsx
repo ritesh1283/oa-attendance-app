@@ -79,9 +79,9 @@ const LoginPage = () => {
             {/* Logo area */}
             <div className="flex items-center gap-3 mb-16">
               <div className="w-8 h-8 rounded bg-gradient-to-br from-[#ff6b6b] to-[#c44536] flex items-center justify-center font-bold text-lg shadow-lg shadow-[#ff6b6b]/30">
-                F
+                M
               </div>
-              <span className="text-2xl font-semibold tracking-wide">Fauget</span>
+              <span className="text-2xl font-semibold tracking-wide">OA Track</span>
             </div>
 
             <h1 className="text-5xl md:text-6xl font-bold mb-4 text-white">Login</h1>
@@ -90,12 +90,22 @@ const LoginPage = () => {
             <div className="w-16 h-1 bg-white/20 mb-8 rounded-full" />
             
             <p className="text-gray-400 leading-relaxed mb-10 max-w-md text-sm md:text-base">
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aenean semper mauris in magna venenatis suscipit. Access your online assessment attendance system securely.
+              Access your Online Assessment Attendance System securely and manage attendance with real-time verification.
             </p>
 
-            <button className="bg-[#ff6b6b] hover:bg-[#ff5252] text-white px-8 py-3 rounded-lg font-medium transition-all duration-300 transform hover:-translate-y-1 hover:shadow-[0_10px_20px_-10px_rgba(255,107,107,0.6)] w-max">
+            <p className="text-base text-gray-400 mb-8 font-medium">
+              New Student?
+              <Link
+                to="/register"
+                className="ml-2 font-semibold text-[#f26644] hover:text-[#ff7a59] transition-colors duration-200"
+              >
+                Register
+              </Link>
+            </p>
+
+            {/* <button className="bg-[#ff6b6b] hover:bg-[#ff5252] text-white px-8 py-3 rounded-lg font-medium transition-all duration-300 transform hover:-translate-y-1 hover:shadow-[0_10px_20px_-10px_rgba(255,107,107,0.6)] w-max">
               Learn More
-            </button>
+            </button> */}
           </div>
         </div>
 
@@ -117,7 +127,7 @@ const LoginPage = () => {
                   </div>
                   <input
                     type="text"
-                    placeholder="hello@reallygreatsite.com"
+                    placeholder="2311XXXXXX@stu.manit.ac.in"
                     className="w-full bg-[#0d1321]/50 border border-white/10 text-white rounded-xl py-3 pl-11 pr-4 focus:outline-none focus:border-[#ff6b6b] focus:ring-1 focus:ring-[#ff6b6b] transition-all placeholder-gray-600"
                     value={form.login_id}
                     onChange={e => setForm(p => ({ ...p, login_id: e.target.value }))}
