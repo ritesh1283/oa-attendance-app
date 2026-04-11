@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
 import FaceCapture from '../../components/common/FaceCapture';
 import toast from 'react-hot-toast';
-import { FiCheckCircle, FiAlertCircle, FiCalendar, FiClock, FiTrash2, FiEye, FiEyeOff, FiHash } from 'react-icons/fi';
+import { FiCheckCircle, FiAlertCircle, FiCalendar, FiClock, FiTrash2, FiEye, FiEyeOff, FiHash, FiUser, FiCamera, FiList, FiSettings } from 'react-icons/fi';
 import { format } from 'date-fns';
 
 const StudentDashboard = () => {
@@ -19,8 +19,10 @@ const StudentDashboard = () => {
   const [deleteForm, setDeleteForm] = useState({ scholar_no: '', password: '' });
   const [deleting, setDeleting] = useState(false);
   const [showDelPass, setShowDelPass] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     fetchHistory();
   }, []);
 
@@ -70,251 +72,347 @@ const StudentDashboard = () => {
   const absentCount = history.filter(h => h.status !== 'present').length;
 
   const tabs = [
-    { id: 'home', label: '🏠 Home' },
-    { id: 'face', label: '📷 Face Setup' },
-    { id: 'history', label: '📋 History' },
-    { id: 'settings', label: '⚙️ Settings' },
+    { id: 'home', label: 'Home', icon: <FiUser /> },
+    { id: 'face', label: 'Face Setup', icon: <FiCamera /> },
+    { id: 'history', label: 'History', icon: <FiList /> },
+    { id: 'settings', label: 'Settings', icon: <FiSettings /> },
   ];
 
   return (
-    <div className="min-h-screen bg-base-200">
-      <div className="max-w-2xl mx-auto p-4 space-y-4">
-        {/* Profile card */}
-        <div className="profile-gradient rounded-2xl shadow-lg p-5 text-white animate-fade-in">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-xl font-bold">
-              {user?.full_name?.charAt(0).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-xl font-bold truncate">{user?.full_name}</h2>
-              <p className="text-white/70 text-sm">{user?.scholar_no} · {user?.branch} - {user?.section}</p>
-            </div>
-            <div className={`badge ${faceRegistered ? 'bg-green-500/20 text-green-100 border-green-400/30' : 'bg-yellow-500/20 text-yellow-100 border-yellow-400/30'} gap-1 px-3 py-2`}>
-              {faceRegistered ? <><FiCheckCircle size={12} /> Face OK</> : <><FiAlertCircle size={12} /> No Face</>}
-            </div>
-          </div>
-        </div>
+    <>
+      <style>
+        {`
+          .animate-fade-in { opacity: 0; animation: fadeIn 0.6s ease-out forwards; }
+          .animate-slide-up { opacity: 0; animation: slideUp 0.6s ease-out forwards; }
+          .delay-100 { animation-delay: 100ms; }
+          .delay-200 { animation-delay: 200ms; }
+          
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          
+          .bg-dots {
+            background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1.5px, transparent 1.5px);
+            background-size: 24px 24px;
+          }
+          .bg-overlay {
+            background: linear-gradient(135deg, #0d1321 0%, #17203a 100%);
+          }
+        `}
+      </style>
 
-        {/* Tabs */}
-        <div className="bg-base-100 rounded-2xl p-1.5 flex gap-1 shadow-sm">
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
-                activeTab === t.id
-                  ? 'bg-primary text-white shadow-md'
-                  : 'text-base-content/60 hover:text-base-content hover:bg-base-200'
-              }`}
-              onClick={() => setActiveTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      <div className="min-h-screen bg-overlay text-white font-sans relative overflow-x-hidden pb-12">
+        {/* Decorative Background */}
+        <div className="absolute inset-0 bg-dots opacity-40 pointer-events-none" />
+        <div className="absolute top-0 right-0 w-full h-96 bg-gradient-to-b from-[#1d2d44]/50 to-transparent pointer-events-none" />
 
-        {/* Home Tab */}
-        {activeTab === 'home' && (
-          <div className="space-y-4 animate-fade-in">
-            {!faceRegistered && (
-              <div className="bg-warning/10 border border-warning/20 rounded-2xl p-4 flex items-start gap-3">
-                <FiAlertCircle size={20} className="text-warning shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-semibold text-sm">Face not registered</p>
-                  <p className="text-xs text-base-content/60 mt-0.5">You must register your face to participate in OA attendance verification.</p>
-                </div>
-                <button className="btn btn-warning btn-sm" onClick={() => setActiveTab('face')}>Register</button>
+        <div className="max-w-2xl mx-auto p-4 md:p-6 relative z-10 pt-8">
+          
+          {/* Profile Card Header */}
+          <div className={`bg-gradient-to-r from-[#f26644] to-[#c44536] rounded-3xl shadow-2xl p-6 md:p-8 text-white mb-8 transition-all duration-700 ${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
+            <div className="flex items-center gap-5">
+              <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl font-extrabold shadow-inner border border-white/30">
+                {user?.full_name?.charAt(0).toUpperCase() || 'U'}
               </div>
-            )}
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: 'Total OAs', val: history.length, color: 'text-primary', bg: 'bg-primary/10' },
-                { label: 'Present', val: presentCount, color: 'text-success', bg: 'bg-success/10' },
-                { label: 'Absent', val: absentCount, color: 'text-error', bg: 'bg-error/10' },
-              ].map(({ label, val, color, bg }) => (
-                <div key={label} className={`stat-card ${bg} text-center`}>
-                  <p className={`text-3xl font-extrabold ${color}`}>{val}</p>
-                  <p className="text-xs text-base-content/50 mt-1">{label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Face Setup Tab */}
-        {activeTab === 'face' && (
-          <div className="card bg-base-100 shadow-sm rounded-2xl animate-fade-in">
-            <div className="card-body items-center text-center">
-              {faceRegistered ? (
-                <div className="space-y-3 py-4">
-                  <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mx-auto">
-                    <FiCheckCircle size={32} className="text-success" />
-                  </div>
-                  <h3 className="text-lg font-bold text-success">Face Registered</h3>
-                  <p className="text-base-content/50 text-sm max-w-xs">Your face pattern is stored. Contact TPO admin to reset if needed.</p>
-                </div>
-              ) : (
-                <>
-                  <h3 className="text-lg font-bold">Register Your Face</h3>
-                  <p className="text-sm text-base-content/50 mb-4">
-                    Only your face pattern (not the image) will be stored.
-                  </p>
-                  <FaceCapture onCapture={(blob) => setFaceBlob(blob)} label="📸 Click to Capture" />
-                  {faceBlob && (
-                    <button className="btn btn-gradient btn-wide mt-3" onClick={handleFaceRegister} disabled={registeringFace}>
-                      {registeringFace ? <span className="loading loading-spinner loading-sm" /> : '✅ Complete Registration'}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* History Tab */}
-        {activeTab === 'history' && (
-          <div className="space-y-3 animate-fade-in">
-            {loading ? (
-              <div className="flex justify-center py-8"><span className="loading loading-spinner loading-lg text-primary" /></div>
-            ) : history.length === 0 ? (
-              <div className="card bg-base-100 shadow-sm rounded-2xl">
-                <div className="card-body items-center text-center py-10">
-                  <FiCalendar size={40} className="text-base-content/20" />
-                  <p className="text-base-content/40 mt-2">No OA attendance records yet</p>
-                </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-2xl font-bold truncate tracking-tight">{user?.full_name || 'Student Name'}</h2>
+                <p className="text-white/80 text-sm font-medium mt-1 font-mono tracking-wide">{user?.scholar_no} <span className="font-sans mx-1">•</span> {user?.branch} - {user?.section}</p>
               </div>
-            ) : history.map(item => (
-              <div key={item.id} className="card bg-base-100 shadow-sm rounded-2xl card-hover">
-                <div className="card-body py-4 flex-row items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <p className="font-semibold">{item.title}</p>
-                    <div className="flex items-center gap-3 text-xs text-base-content/50 mt-1">
-                      <span className="flex items-center gap-1"><FiCalendar size={11} />{format(new Date(item.oa_date), 'dd MMM yyyy')}</span>
-                      <span className="flex items-center gap-1"><FiClock size={11} />{item.start_time?.slice(0,5)} - {item.end_time?.slice(0,5)}</span>
-                    </div>
-                    {item.is_extended && <span className="badge badge-warning badge-xs mt-1">Extended</span>}
-                  </div>
-                  <div className="text-right">
-                    <span className={`badge ${item.status === 'present' ? 'badge-success' : 'badge-error'} badge-lg gap-1`}>
-                      {item.status === 'present' ? '✓ Present' : '✗ Absent'}
-                    </span>
-                    {item.face_match_score && (
-                      <p className="text-xs text-base-content/40 mt-1">{item.face_match_score.toFixed(0)}% match</p>
-                    )}
-                  </div>
-                </div>
+              <div className="hidden sm:block">
+                <span className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 border ${faceRegistered ? 'bg-white/20 text-white border-white/30' : 'bg-black/20 text-amber-300 border-amber-400/30'}`}>
+                  {faceRegistered ? <><FiCheckCircle size={14} /> Face OK</> : <><FiAlertCircle size={14} /> No Face Setup</>}
+                </span>
               </div>
+            </div>
+             {/* Mobile badge representation */}
+             <div className="sm:hidden mt-4 pt-4 border-t border-white/20">
+                <span className={`w-full px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 border ${faceRegistered ? 'bg-white/20 text-white border-white/30' : 'bg-black/20 text-amber-300 border-amber-400/30'}`}>
+                  {faceRegistered ? <><FiCheckCircle size={14} /> Face Status: OK</> : <><FiAlertCircle size={14} /> Face Status: Incomplete</>}
+                </span>
+              </div>
+          </div>
+
+          {/* Navigation Tabs */}
+          <div className={`bg-[#1d2d44]/60 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 flex flex-wrap sm:flex-nowrap gap-1 shadow-lg mb-8 transition-all duration-700 delay-100 ${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                className={`flex-1 flex justify-center items-center gap-2 py-3 px-2 sm:px-4 rounded-xl text-xs md:text-sm font-semibold transition-all duration-300 min-w-[45%] sm:min-w-0 ${
+                  activeTab === t.id
+                    ? 'bg-[#f26644] text-white shadow-md'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                onClick={() => setActiveTab(t.id)}
+              >
+                {t.icon} <span className="hidden sm:inline">{t.label}</span>
+              </button>
             ))}
           </div>
-        )}
 
-        {/* Settings Tab */}
-        {activeTab === 'settings' && (
-          <div className="space-y-4 animate-fade-in">
-            <div className="card bg-base-100 shadow-sm rounded-2xl">
-              <div className="card-body">
-                <h3 className="font-bold text-lg mb-2">Account Information</h3>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="bg-base-200 rounded-xl p-3">
-                    <p className="text-base-content/50 text-xs">Login ID</p>
-                    <p className="font-semibold">{user?.login_id}</p>
+          {/* Tab Content Areas */}
+          <div className="animate-fade-in delay-200">
+            
+            {/* --- HOME TAB --- */}
+            {activeTab === 'home' && (
+              <div className="space-y-6">
+                
+                {/* Face Registration Alert */}
+                {!faceRegistered && (
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-lg backdrop-blur-sm">
+                    <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                      <FiAlertCircle size={20} className="text-amber-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-amber-400 text-sm">Face Setup Required</p>
+                      <p className="text-xs text-amber-200/70 mt-1 leading-relaxed">You must register your face pattern to participate in OA attendance verification.</p>
+                    </div>
+                    <button 
+                      className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-black font-bold px-5 py-2.5 rounded-xl text-sm transition-all shadow-lg" 
+                      onClick={() => setActiveTab('face')}
+                    >
+                      Setup Now
+                    </button>
                   </div>
-                  <div className="bg-base-200 rounded-xl p-3">
-                    <p className="text-base-content/50 text-xs">Scholar No</p>
-                    <p className="font-semibold font-mono">{user?.scholar_no}</p>
-                  </div>
-                  <div className="bg-base-200 rounded-xl p-3">
-                    <p className="text-base-content/50 text-xs">Branch</p>
-                    <p className="font-semibold">{user?.branch}</p>
-                  </div>
-                  <div className="bg-base-200 rounded-xl p-3">
-                    <p className="text-base-content/50 text-xs">Section</p>
-                    <p className="font-semibold">{user?.section}</p>
+                )}
+                
+                {/* Stats Grid */}
+                <div>
+                   <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest ml-2 mb-4">Attendance Overview</h3>
+                  <div className="grid grid-cols-3 gap-3 md:gap-4">
+                    {[
+                      { label: 'Total OAs', val: history.length, color: 'text-white', bg: 'bg-white/10 border-white/10' },
+                      { label: 'Present', val: presentCount, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+                      { label: 'Absent', val: absentCount, color: 'text-[#f26644]', bg: 'bg-[#f26644]/10 border-[#f26644]/20' },
+                    ].map(({ label, val, color, bg }) => (
+                      <div key={label} className={`backdrop-blur-xl border rounded-3xl p-5 md:p-6 text-center shadow-lg transition-transform hover:-translate-y-1 ${bg}`}>
+                        <p className={`text-3xl md:text-4xl font-extrabold ${color}`}>{val}</p>
+                        <p className="text-[10px] md:text-xs text-gray-400 uppercase tracking-wider font-bold mt-2">{label}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Danger Zone */}
-            <div className="card bg-error/5 border border-error/20 rounded-2xl">
-              <div className="card-body">
-                <h3 className="font-bold text-error flex items-center gap-2">
-                  <FiTrash2 size={16} /> Danger Zone
-                </h3>
-                <p className="text-sm text-base-content/60 mt-1">
-                  Once you delete your account, all your data including attendance records will be permanently lost.
-                </p>
-                <button
-                  className="btn btn-error btn-outline btn-sm mt-3 w-fit"
-                  onClick={() => setShowDeleteModal(true)}
-                >
-                  Delete My Account
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+            {/* --- FACE SETUP TAB --- */}
+            {activeTab === 'face' && (
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-3xl overflow-hidden">
+                <div className="p-8 text-center">
+                  {faceRegistered ? (
+                    <div className="space-y-4 py-8 flex flex-col items-center">
+                      <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center shadow-[0_0_30px_rgba(52,211,153,0.2)]">
+                        <FiCheckCircle size={40} className="text-emerald-400 drop-shadow-md" />
+                      </div>
+                      <h3 className="text-2xl font-bold text-white tracking-tight">Face Setup Complete</h3>
+                      <p className="text-gray-400 text-sm max-w-sm leading-relaxed">
+                        Your face pattern is securely stored in the system. Contact your TPO admin if you need to reset your setup.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <h3 className="text-2xl font-bold text-white mb-2">Register Your Face</h3>
+                      <p className="text-sm text-gray-400 mb-8 max-w-sm">
+                        Align your face in the frame and capture. Only an encrypted mathematical pattern is stored, not the image itself.
+                      </p>
+                      
+                      {/* Face Capture Container */}
+                      <div className="w-full max-w-sm rounded-3xl overflow-hidden border-2 border-white/10 bg-black/40 mb-6 shadow-xl relative">
+                        <FaceCapture onCapture={(blob) => setFaceBlob(blob)} label="📸 Capture Photo" />
+                      </div>
 
-      {/* Delete Account Modal */}
-      {showDeleteModal && (
-        <dialog open className="modal modal-open modal-bottom sm:modal-middle">
-          <div className="modal-box glass-card max-w-md">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-error/10 flex items-center justify-center">
-                <FiTrash2 size={18} className="text-error" />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg text-error">Delete Account</h3>
-                <p className="text-base-content/50 text-sm">This action cannot be undone</p>
-              </div>
-            </div>
-
-            <form onSubmit={handleDeleteAccount} className="space-y-4">
-              <div className="form-control">
-                <label className="label"><span className="label-text font-semibold">Scholar Number</span></label>
-                <div className="input input-bordered input-premium flex items-center gap-2">
-                  <FiHash className="text-base-content/40" />
-                  <input
-                    type="text"
-                    placeholder="Enter your scholar number"
-                    className="grow bg-transparent outline-none font-mono"
-                    value={deleteForm.scholar_no}
-                    onChange={e => setDeleteForm(p => ({ ...p, scholar_no: e.target.value }))}
-                    required
-                  />
+                      {faceBlob && (
+                        <button 
+                          className="w-full max-w-sm bg-[#f26644] hover:bg-[#e05535] text-white font-bold py-4 rounded-full transition-all duration-300 transform hover:-translate-y-1 shadow-lg flex justify-center items-center gap-2" 
+                          onClick={handleFaceRegister} 
+                          disabled={registeringFace}
+                        >
+                          {registeringFace ? (
+                            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                          ) : '✅ Save Face Profile'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
+            )}
 
-              <div className="form-control">
-                <label className="label"><span className="label-text font-semibold">Password</span></label>
-                <div className="input input-bordered input-premium flex items-center gap-2">
-                  <FiEye className="text-base-content/40" />
-                  <input
-                    type={showDelPass ? 'text' : 'password'}
-                    placeholder="Enter your password"
-                    className="grow bg-transparent outline-none"
-                    value={deleteForm.password}
-                    onChange={e => setDeleteForm(p => ({ ...p, password: e.target.value }))}
-                    required
-                  />
-                  <button type="button" onClick={() => setShowDelPass(p => !p)} className="text-base-content/40 hover:text-base-content">
-                    {showDelPass ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+            {/* --- HISTORY TAB --- */}
+            {activeTab === 'history' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest ml-2 mb-4">Past Sessions</h3>
+                
+                {loading ? (
+                  <div className="flex justify-center py-12">
+                    <svg className="animate-spin h-8 w-8 text-[#f26644]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  </div>
+                ) : history.length === 0 ? (
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-12 text-center shadow-lg flex flex-col items-center">
+                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
+                      <FiCalendar size={28} className="text-gray-500" />
+                    </div>
+                    <p className="text-gray-400 font-medium">No OA attendance records found.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {history.map(item => (
+                      <div key={item.id} className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg rounded-2xl p-5 hover:bg-white/10 transition-colors flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                          <p className="font-bold text-white">{item.title}</p>
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400 mt-2">
+                            <span className="flex items-center gap-1.5"><FiCalendar size={12} className="text-gray-500"/>{format(new Date(item.oa_date), 'dd MMM yyyy')}</span>
+                            <span className="text-gray-600">•</span>
+                            <span className="flex items-center gap-1.5"><FiClock size={12} className="text-gray-500"/>{item.start_time?.slice(0,5)} - {item.end_time?.slice(0,5)}</span>
+                          </div>
+                          {item.is_extended && <span className="inline-block mt-2 bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Extended Session</span>}
+                        </div>
+                        
+                        <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t border-white/5 sm:border-t-0">
+                          <span className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border ${item.status === 'present' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-[#f26644]/10 text-[#f26644] border-[#f26644]/20'}`}>
+                            {item.status === 'present' ? '✓ Present' : '✗ Absent'}
+                          </span>
+                          {item.face_match_score && (
+                            <p className="text-[10px] text-gray-500 mt-2 font-medium">{item.face_match_score.toFixed(0)}% Match</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* --- SETTINGS TAB --- */}
+            {activeTab === 'settings' && (
+              <div className="space-y-6">
+                
+                {/* Account Info Card */}
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-3xl overflow-hidden p-6">
+                  <h3 className="font-bold text-lg text-white mb-6 flex items-center gap-2">
+                    <FiUser className="text-[#f26644]" /> Profile Details
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="bg-[#0d1321]/50 border border-white/5 rounded-2xl p-4">
+                      <p className="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-1">Login ID</p>
+                      <p className="font-semibold text-white">{user?.login_id}</p>
+                    </div>
+                    <div className="bg-[#0d1321]/50 border border-white/5 rounded-2xl p-4">
+                      <p className="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-1">Scholar No.</p>
+                      <p className="font-semibold text-white font-mono">{user?.scholar_no}</p>
+                    </div>
+                    <div className="bg-[#0d1321]/50 border border-white/5 rounded-2xl p-4">
+                      <p className="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-1">Branch</p>
+                      <p className="font-semibold text-white">{user?.branch}</p>
+                    </div>
+                    <div className="bg-[#0d1321]/50 border border-white/5 rounded-2xl p-4">
+                      <p className="text-gray-500 text-[10px] uppercase font-bold tracking-wider mb-1">Section</p>
+                      <p className="font-semibold text-white">{user?.section}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Danger Zone */}
+                <div className="bg-red-500/10 border border-red-500/20 backdrop-blur-xl shadow-lg rounded-3xl p-6">
+                  <h3 className="font-bold text-red-400 text-lg flex items-center gap-2 mb-2">
+                    <FiTrash2 /> Danger Zone
+                  </h3>
+                  <p className="text-sm text-red-200/70 leading-relaxed mb-5 max-w-md">
+                    Permanently delete your account. All your data, including face patterns and attendance history, will be erased instantly. This cannot be undone.
+                  </p>
+                  <button
+                    className="bg-red-500/20 hover:bg-red-500 border border-red-500/50 text-red-400 hover:text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg"
+                    onClick={() => setShowDeleteModal(true)}
+                  >
+                    Delete My Account
                   </button>
                 </div>
               </div>
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" className="btn btn-ghost flex-1" onClick={() => setShowDeleteModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-error flex-1" disabled={deleting}>
-                  {deleting ? <span className="loading loading-spinner loading-sm" /> : 'Delete Forever'}
-                </button>
-              </div>
-            </form>
+            )}
           </div>
-          <div className="modal-backdrop bg-black/50" onClick={() => setShowDeleteModal(false)} />
-        </dialog>
+        </div>
+      </div>
+
+      {/* --- DELETE ACCOUNT MODAL --- */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowDeleteModal(false)} />
+          
+          {/* Modal Content */}
+          <div className="bg-[#1d2d44] border border-white/10 rounded-[2rem] shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-slide-up">
+            <div className="p-8">
+              
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/30">
+                  <FiTrash2 size={24} className="text-red-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-xl text-white">Delete Account</h3>
+                  <p className="text-red-300 text-xs mt-1">This action is permanent.</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleDeleteAccount} className="space-y-5">
+                {/* Scholar Input */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Confirm Scholar No.</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500">
+                      <FiHash size={16} />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Enter your scholar number"
+                      className="w-full bg-[#0d1321]/80 border border-white/10 text-white font-mono rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 transition-all placeholder-gray-600 text-sm"
+                      value={deleteForm.scholar_no}
+                      onChange={e => setDeleteForm(p => ({ ...p, scholar_no: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Password Input */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-2">Password</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500">
+                      <FiEye size={16} />
+                    </div>
+                    <input
+                      type={showDelPass ? 'text' : 'password'}
+                      placeholder="Enter your password"
+                      className="w-full bg-[#0d1321]/80 border border-white/10 text-white rounded-xl py-3 pl-10 pr-12 focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 transition-all placeholder-gray-600 text-sm"
+                      value={deleteForm.password}
+                      onChange={e => setDeleteForm(p => ({ ...p, password: e.target.value }))}
+                      required
+                    />
+                    <button type="button" onClick={() => setShowDelPass(p => !p)} className="absolute inset-y-0 right-4 flex items-center text-gray-500 hover:text-white transition-colors">
+                      {showDelPass ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button type="button" className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl font-medium transition-colors text-sm border border-white/10" onClick={() => setShowDeleteModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold transition-colors shadow-lg flex justify-center items-center text-sm" disabled={deleting}>
+                    {deleting ? <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : 'Delete Forever'}
+                  </button>
+                </div>
+              </form>
+
+            </div>
+          </div>
+        </div>
       )}
-    </div>
+    </>
   );
 };
 

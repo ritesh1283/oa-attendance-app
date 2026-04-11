@@ -11,8 +11,8 @@ const videoConstraints = {
 /**
  * FaceCapture component
  * Props:
- *   onCapture(blob) - called when user captures
- *   label - button label
+ * onCapture(blob) - called when user captures
+ * label - button label
  */
 const FaceCapture = ({ onCapture, label = 'Capture Face', disabled = false }) => {
   const webcamRef = useRef(null);
@@ -37,8 +37,9 @@ const FaceCapture = ({ onCapture, label = 'Capture Face', disabled = false }) =>
   };
 
   return (
-    <div className="flex flex-col items-center gap-4 w-full">
-      <div className="relative rounded-2xl overflow-hidden border-4 border-primary/20 w-full max-w-sm aspect-square bg-black shadow-lg">
+    <div className="flex flex-col items-center gap-5 w-full relative z-0">
+      {/* Camera/Image Container */}
+      <div className="relative rounded-3xl overflow-hidden border border-white/10 w-full max-w-sm aspect-square bg-[#0d1321] shadow-[0_0_30px_rgba(0,0,0,0.5)] group">
         {!captured ? (
           <>
             <Webcam
@@ -47,47 +48,59 @@ const FaceCapture = ({ onCapture, label = 'Capture Face', disabled = false }) =>
               screenshotFormat="image/jpeg"
               videoConstraints={videoConstraints}
               onUserMediaError={() => setPermError(true)}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition-opacity duration-300"
               mirrored
             />
             {/* Face guide overlay */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-56 h-56 rounded-full border-4 border-white/50 border-dashed" />
+              <div className="w-[60%] h-[60%] max-w-[240px] max-h-[240px] rounded-full border-2 border-[#f26644]/40 border-dashed shadow-[0_0_20px_rgba(242,102,68,0.15)]" />
             </div>
-            {/* Single instruction overlay */}
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center">
-              <div className="bg-primary/90 backdrop-blur-sm text-white px-4 py-2 rounded-xl text-sm font-semibold mx-4 text-center shadow-lg">
-                👀 Keep your eyes wide open and look into the camera
+            {/* Instruction overlay */}
+            <div className="absolute bottom-5 left-0 right-0 flex justify-center pointer-events-none z-10">
+              <div className="bg-[#1d2d44]/80 backdrop-blur-md border border-white/10 text-white px-5 py-2.5 rounded-2xl text-[11px] uppercase tracking-wider font-bold mx-4 text-center shadow-xl">
+                👀 Keep eyes open & look at camera
               </div>
             </div>
           </>
         ) : (
-          <img src={captured} alt="Captured" className="w-full h-full object-cover" />
+          <div className="w-full h-full relative">
+            <img src={captured} alt="Captured" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-emerald-500/10 mix-blend-overlay pointer-events-none"></div>
+          </div>
         )}
+        
+        {/* Permission Error Overlay */}
         {permError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-error/20 backdrop-blur-sm">
-            <p className="text-error font-semibold text-center p-4">Camera permission denied. Please allow camera access.</p>
+          <div className="absolute inset-0 flex items-center justify-center bg-[#0d1321]/90 backdrop-blur-md border-2 border-red-500/30 p-6 z-20">
+            <p className="text-red-400 font-bold text-center text-sm">
+              Camera permission denied. Please allow camera access in your browser settings.
+            </p>
           </div>
         )}
       </div>
 
+      {/* Controls */}
       {!captured ? (
         <button
           type="button"
           onClick={captureNow}
           disabled={disabled || permError}
-          className="btn btn-gradient btn-wide gap-2 h-12"
+          className="w-full max-w-sm bg-[#f26644] hover:bg-[#e05535] text-white font-bold py-3.5 rounded-2xl transition-all duration-300 transform hover:-translate-y-1 shadow-lg shadow-[#f26644]/20 flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
         >
           <FiCamera size={18} />
           {label}
         </button>
       ) : (
-        <div className="flex gap-3">
-          <div className="badge badge-success gap-1 p-3 text-sm font-semibold">
-            <FiCheckCircle size={14} /> Captured
+        <div className="flex w-full max-w-sm gap-3">
+          <div className="flex-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-inner">
+            <FiCheckCircle size={16} /> Captured
           </div>
-          <button type="button" onClick={retake} className="btn btn-ghost btn-sm gap-1">
-            <FiRefreshCw size={14} /> Retake
+          <button 
+            type="button" 
+            onClick={retake} 
+            className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+          >
+            <FiRefreshCw size={16} /> Retake
           </button>
         </div>
       )}
