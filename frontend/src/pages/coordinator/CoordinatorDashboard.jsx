@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 import { FiDownload, FiFilter, FiCalendar, FiSearch, FiUsers, FiList, FiClock, FiCheckCircle, FiXCircle } from 'react-icons/fi';
+import Skeleton from '../../components/common/Skeleton';
 import { format } from 'date-fns';
 
 const BRANCHES = ['', 'CS', 'MDS', 'ECE', 'EE', 'ME', 'Civil Eng', 'Chem Eng'];
@@ -20,10 +21,17 @@ const CoordinatorDashboard = () => {
   const [studentSearch, setStudentSearch] = useState('');
   const [studentBranch, setStudentBranch] = useState('');
   const [loadingStudents, setLoadingStudents] = useState(false);
+  const [studentPage, setStudentPage] = useState(1);
+  const [hasMoreStudents, setHasMoreStudents] = useState(true);
+
+  // Pagination states
+  const [sessionPage, setSessionPage] = useState(1);
+  const [hasMoreSessions, setHasMoreSessions] = useState(true);
+  const [attendancePage, setAttendancePage] = useState(1);
+  const [hasMoreAttendance, setHasMoreAttendance] = useState(true);
   
   const [mounted, setMounted] = useState(false);
 
-  // Updated status colors for the new design system
   const statusColors = { 
     upcoming: 'bg-blue-500/10 text-blue-400 border border-blue-500/20', 
     active:   'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20', 
@@ -33,27 +41,44 @@ const CoordinatorDashboard = () => {
 
   useEffect(() => {
     setMounted(true);
-    fetchSessions();
+    fetchSessions(1);
   }, []);
 
-  const fetchSessions = async () => {
+  // FIX: Added activeFilters parameter to prevent React state race-conditions on clear
+  const fetchSessions = async (page = 1, activeFilters = filters) => {
     setLoading(true);
     try {
-      const params = {};
-      if (filters.start_date) params.start_date = filters.start_date;
-      if (filters.end_date)   params.end_date   = filters.end_date;
-      if (filters.date)       params.date        = filters.date;
+      const params = { page, limit: 10 };
+      if (activeFilters.start_date) params.start_date = activeFilters.start_date;
+      if (activeFilters.end_date)   params.end_date   = activeFilters.end_date;
+      if (activeFilters.date)       params.date       = activeFilters.date;
+      
       const res = await api.get('/oa', { params });
-      setSessions(res.data.data);
+      
+      if (page === 1) setSessions(res.data.data);
+      else setSessions(p => [...p, ...res.data.data]);
+      
+      setHasMoreSessions(page < res.data.meta.totalPages);
+      setSessionPage(page);
     } catch {}
     setLoading(false);
   };
 
-  const viewAttendance = async (session) => {
-    setSelectedSession(session);
+  const handleClearFilters = () => {
+    const emptyFilters = { start_date: '', end_date: '', date: '' };
+    setFilters(emptyFilters);
+    fetchSessions(1, emptyFilters);
+  };
+
+  const viewAttendance = async (session, page = 1) => {
+    if (page === 1) setSelectedSession(session);
     try {
-      const res = await api.get(`/attendance/oa/${session.id}`);
-      setAttendance(res.data.data);
+      const res = await api.get(`/attendance/oa/${session.id}?page=${page}&limit=20`);
+      if (page === 1) setAttendance(res.data.data);
+      else setAttendance(p => [...p, ...res.data.data]);
+
+      setHasMoreAttendance(page < res.data.meta.totalPages);
+      setAttendancePage(page);
     } catch {}
   };
 
@@ -76,20 +101,27 @@ const CoordinatorDashboard = () => {
     }
   };
 
-  const fetchStudents = async () => {
+  // FIX: Accept overrides to allow instant fetching when dropdowns change
+  const fetchStudents = async (page = 1, searchOverride = studentSearch, branchOverride = studentBranch) => {
     setLoadingStudents(true);
     try {
-      const params = {};
-      if (studentSearch) params.search = studentSearch;
-      if (studentBranch) params.branch = studentBranch;
+      const params = { page, limit: 20 };
+      if (searchOverride) params.search = searchOverride;
+      if (branchOverride) params.branch = branchOverride;
+      
       const res = await api.get('/students', { params });
-      setStudents(res.data.data);
+      
+      if (page === 1) setStudents(res.data.data);
+      else setStudents(p => [...p, ...res.data.data]);
+
+      setHasMoreStudents(page < res.data.meta.totalPages);
+      setStudentPage(page);
     } catch {}
     setLoadingStudents(false);
   };
 
   useEffect(() => {
-    if (activeTab === 'students') fetchStudents();
+    if (activeTab === 'students') fetchStudents(1);
   }, [activeTab]);
 
   const tabs = [
@@ -121,10 +153,9 @@ const CoordinatorDashboard = () => {
           }
           .bg-overlay {
             background: linear-gradient(135deg, #0d1321 0%, #17203a 100%);
-            color-scheme: dark; /* Ensures date pickers look dark natively */
+            color-scheme: dark;
           }
           
-          /* Custom scrollbar for tables */
           .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
           .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 10px; }
           .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
@@ -133,13 +164,11 @@ const CoordinatorDashboard = () => {
       </style>
 
       <div className="min-h-screen bg-overlay text-white font-sans relative overflow-x-hidden pb-12">
-        {/* Decorative Background */}
         <div className="absolute inset-0 bg-dots opacity-40 pointer-events-none" />
         <div className="absolute top-0 right-0 w-full h-96 bg-gradient-to-b from-[#1d2d44]/50 to-transparent pointer-events-none" />
 
         <div className="max-w-6xl mx-auto p-4 md:p-6 relative z-10 pt-8">
           
-          {/* Header */}
           <div className={`mb-8 text-center md:text-left transition-all duration-700 ${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
             <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center justify-center md:justify-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#f26644] to-[#c44536] flex items-center justify-center shadow-lg shadow-[#f26644]/20">
@@ -150,7 +179,6 @@ const CoordinatorDashboard = () => {
             <p className="text-gray-400 text-sm mt-2">Manage sessions, view attendance, and export reports</p>
           </div>
 
-          {/* Navigation Tabs */}
           <div className={`bg-[#1d2d44]/60 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 flex gap-1 shadow-lg mb-8 max-w-md transition-all duration-700 delay-100 ${mounted ? 'animate-slide-up' : 'opacity-0'}`}>
             {tabs.map(t => (
               <button
@@ -167,12 +195,10 @@ const CoordinatorDashboard = () => {
             ))}
           </div>
 
-          {/* --- SESSIONS TAB --- */}
           <div className="animate-fade-in delay-200">
             {activeTab === 'sessions' && (
               <div className="space-y-6">
                 
-                {/* Filters */}
                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg rounded-3xl p-5 md:p-6">
                   <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-4">
                     <FiFilter size={16} className="text-[#f26644]" /> Filter Sessions
@@ -198,10 +224,11 @@ const CoordinatorDashboard = () => {
                         onChange={e => setFilters(p => ({ ...p, end_date: e.target.value, date: '' }))} />
                     </div>
                     <div className="flex gap-2 sm:col-span-3 lg:col-span-1 pt-2 lg:pt-0">
-                      <button className="flex-1 bg-[#f26644] hover:bg-[#e05535] text-white py-2.5 px-4 rounded-xl text-sm font-semibold transition-all shadow-lg" onClick={fetchSessions}>
+                      {/* FIX: explicitly pass 1 instead of event object */}
+                      <button className="flex-1 bg-[#f26644] hover:bg-[#e05535] text-white py-2.5 px-4 rounded-xl text-sm font-semibold transition-all shadow-lg" onClick={() => fetchSessions(1)}>
                         Apply
                       </button>
-                      <button className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white py-2.5 px-4 rounded-xl text-sm font-medium transition-all" onClick={() => { setFilters({ start_date:'', end_date:'', date:'' }); setTimeout(fetchSessions, 0); }}>
+                      <button className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white py-2.5 px-4 rounded-xl text-sm font-medium transition-all" onClick={handleClearFilters}>
                         Clear
                       </button>
                     </div>
@@ -210,7 +237,6 @@ const CoordinatorDashboard = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                   
-                  {/* Left Column: Sessions List */}
                   <div className="lg:col-span-5 space-y-4">
                     <div className="flex items-center justify-between ml-2">
                       <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Available Sessions</h2>
@@ -218,14 +244,16 @@ const CoordinatorDashboard = () => {
                     </div>
                     
                     <div className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
-                      {loading ? (
-                        <div className="flex justify-center py-12">
-                          <svg className="animate-spin h-8 w-8 text-[#f26644]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      {loading && sessionPage === 1 ? (
+                        <div className="space-y-3">
+                          <Skeleton className="w-full h-24 rounded-2xl" />
+                          <Skeleton className="w-full h-24 rounded-2xl" />
+                          <Skeleton className="w-full h-24 rounded-2xl" />
                         </div>
                       ) : sessions.map(s => (
                         <div key={s.id}
                           className={`backdrop-blur-xl rounded-2xl p-4 cursor-pointer transition-all duration-200 ${selectedSession?.id === s.id ? 'bg-[#f26644]/10 border border-[#f26644]/50 shadow-[0_0_15px_rgba(242,102,68,0.15)] transform translate-x-1' : 'bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20'}`}
-                          onClick={() => viewAttendance(s)}>
+                          onClick={() => viewAttendance(s, 1)}>
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <h3 className={`font-bold text-base truncate ${selectedSession?.id === s.id ? 'text-[#f26644]' : 'text-white'}`}>{s.title}</h3>
@@ -251,16 +279,23 @@ const CoordinatorDashboard = () => {
                           <p className="text-gray-400 text-sm">No sessions match filters</p>
                         </div>
                       )}
+                      {hasMoreSessions && sessions.length > 0 && (
+                        <button
+                          onClick={() => fetchSessions(sessionPage + 1)}
+                          disabled={loading}
+                          className="w-full bg-white/5 hover:bg-white/10 text-white font-medium py-2 rounded-xl transition-colors border border-white/10"
+                        >
+                          {loading ? 'Loading...' : 'Load More'}
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Right Column: Attendance Detail + Export */}
                   <div className="lg:col-span-7 space-y-4">
                     <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest ml-2 hidden lg:block">Session Details</h2>
                     
                     {selectedSession ? (
                       <div className="animate-fade-in space-y-4">
-                        {/* Session Stats Header */}
                         <div className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-xl rounded-3xl p-5 md:p-6">
                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                             <div>
@@ -269,18 +304,13 @@ const CoordinatorDashboard = () => {
                             </div>
                             
                             <div className="flex gap-3 w-full sm:w-auto">
-                              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 flex-1 sm:flex-none text-center min-w-[90px]">
-                                <p className="text-2xl font-extrabold text-emerald-400">{attendance.filter(a => a.status === 'present').length}</p>
-                                <p className="text-[10px] text-emerald-400/70 uppercase font-bold tracking-wider mt-1">Present</p>
-                              </div>
-                              <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex-1 sm:flex-none text-center min-w-[90px]">
-                                <p className="text-2xl font-extrabold text-white">{attendance.length}</p>
-                                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mt-1">Total</p>
+                              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-12 py-3 flex-1 sm:flex-none text-center min-w-[90px]">
+                                <p className="text-2xl font-extrabold text-emerald-400">{selectedSession.attendance_count}</p>
+                                <p className="text-[10px] text-emerald-400/70 uppercase font-bold tracking-wider mt-1">Present Students</p>
                               </div>
                             </div>
                           </div>
 
-                          {/* Export Controls */}
                           <div className="flex flex-col sm:flex-row items-center gap-3 bg-[#0d1321]/30 p-2 rounded-xl border border-white/5">
                             <select className="w-full sm:flex-1 bg-[#0d1321]/50 border border-white/10 text-white rounded-lg py-2.5 px-3 focus:outline-none focus:border-[#f26644]/50 transition-all text-sm appearance-none cursor-pointer"
                               value={exportBranch} onChange={e => setExportBranch(e.target.value)}>
@@ -293,7 +323,6 @@ const CoordinatorDashboard = () => {
                           </div>
                         </div>
 
-                        {/* Attendance Table */}
                         <div className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-xl rounded-3xl overflow-hidden">
                           <div className="overflow-x-auto custom-scrollbar">
                             <table className="w-full text-left text-sm whitespace-nowrap">
@@ -324,7 +353,7 @@ const CoordinatorDashboard = () => {
                                     </td>
                                     <td className="px-5 py-3 text-xs text-gray-400">
                                       {a.marked_at ? format(new Date(a.marked_at), 'HH:mm') : '-'}
-                                      {a.is_extended && <span className="ml-2 bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase">Ext</span>}
+                                      {a.is_extended ? <span className="ml-2 bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase">Ext</span> : null}
                                     </td>
                                   </tr>
                                 ))}
@@ -337,6 +366,14 @@ const CoordinatorDashboard = () => {
                                 )}
                               </tbody>
                             </table>
+                            {hasMoreAttendance && attendance.length > 0 && (
+                              <button
+                                onClick={() => viewAttendance(selectedSession, attendancePage + 1)}
+                                className="w-full text-center bg-white/5 hover:bg-white/10 text-white font-medium py-3 transition-colors border-t border-white/10 text-xs"
+                              >
+                                Load More Attendance
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -359,7 +396,6 @@ const CoordinatorDashboard = () => {
             {activeTab === 'students' && (
               <div className="space-y-6">
                 
-                {/* Search & Filters */}
                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg rounded-3xl p-5 md:p-6 flex flex-col md:flex-row items-center justify-between gap-4">
                   <div className="flex items-center gap-3 w-full md:w-auto">
                     <div className="w-10 h-10 rounded-full bg-[#f26644]/20 flex items-center justify-center border border-[#f26644]/30">
@@ -381,25 +417,33 @@ const CoordinatorDashboard = () => {
                         className="w-full bg-[#0d1321]/50 border border-white/10 text-white rounded-xl py-2.5 pl-10 pr-4 focus:outline-none focus:border-[#f26644]/50 focus:bg-[#0d1321]/80 transition-all text-sm"
                         value={studentSearch}
                         onChange={e => setStudentSearch(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && fetchStudents()}
+                        // FIX: Pass parameters explicitly on enter key
+                        onKeyDown={e => e.key === 'Enter' && fetchStudents(1, e.target.value, studentBranch)}
                       />
                     </div>
+                    {/* FIX: Auto-fetch immediately when branch changes */}
                     <select className="bg-[#0d1321]/50 border border-white/10 text-white rounded-xl py-2.5 px-4 focus:outline-none focus:border-[#f26644]/50 transition-all text-sm appearance-none cursor-pointer w-full sm:w-auto"
-                      value={studentBranch} onChange={e => setStudentBranch(e.target.value)}>
+                      value={studentBranch} 
+                      onChange={e => {
+                        setStudentBranch(e.target.value);
+                        fetchStudents(1, studentSearch, e.target.value);
+                      }}>
                       <option value="">All Branches</option>
                       {BRANCHES.filter(Boolean).map(b => <option key={b} value={b}>{b}</option>)}
                     </select>
-                    <button className="bg-[#f26644] hover:bg-[#e05535] text-white py-2.5 px-6 rounded-xl text-sm font-semibold transition-all shadow-lg w-full sm:w-auto" onClick={fetchStudents}>
+                    {/* FIX: explicitly pass 1 instead of event object */}
+                    <button className="bg-[#f26644] hover:bg-[#e05535] text-white py-2.5 px-6 rounded-xl text-sm font-semibold transition-all shadow-lg w-full sm:w-auto" onClick={() => fetchStudents(1)}>
                       Search
                     </button>
                   </div>
                 </div>
 
-                {/* Students Table */}
                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-xl rounded-3xl overflow-hidden">
-                  {loadingStudents ? (
-                    <div className="flex justify-center py-16">
-                       <svg className="animate-spin h-10 w-10 text-[#f26644]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  {loadingStudents && studentPage === 1 ? (
+                    <div className="p-6 space-y-4">
+                      <Skeleton className="w-full h-12 rounded-xl" />
+                      <Skeleton className="w-full h-12 rounded-xl" />
+                      <Skeleton className="w-full h-12 rounded-xl" />
                     </div>
                   ) : (
                     <div className="overflow-x-auto custom-scrollbar">
@@ -444,6 +488,15 @@ const CoordinatorDashboard = () => {
                           )}
                         </tbody>
                       </table>
+                      {hasMoreStudents && students.length > 0 && (
+                        <button
+                          onClick={() => fetchStudents(studentPage + 1)}
+                          disabled={loadingStudents}
+                          className="w-full text-center bg-white/5 hover:bg-white/10 text-white font-medium py-4 transition-colors border-t border-white/10 text-sm"
+                        >
+                          {loadingStudents ? 'Loading...' : 'Load More Students'}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
