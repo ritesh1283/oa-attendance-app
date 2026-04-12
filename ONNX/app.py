@@ -36,7 +36,8 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 # 1. InsightFace (Embeddings)
 log.info("Initializing InsightFace ONNX Runtime...")
-face_app = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
+# face_app = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
+face_app = FaceAnalysis(name='buffalo_s', providers=['CPUExecutionProvider'])
 face_app.prepare(ctx_id=0, det_size=(640, 640))
 
 # 2. MediaPipe (Liveness)
