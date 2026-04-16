@@ -188,7 +188,7 @@ const exportAttendanceExcel = async (req, res) => {
 
     let query = `
       SELECT s.scholar_no, u.full_name, s.branch, s.section,
-             a.marked_at, a.face_match_score, a.is_extended
+             a.marked_at, a.is_extended
       FROM attendance a
       JOIN students s ON a.student_id = s.id
       JOIN users u ON s.user_id = u.id
@@ -217,7 +217,7 @@ const exportAttendanceExcel = async (req, res) => {
     sheet.addRow([`Date: ${session[0].oa_date}`, '', '', '', '', '']);
     sheet.addRow([]);
 
-    sheet.addRow(['Scholar No', 'Full Name', 'Branch', 'Section', 'Marked At', 'Match Score', 'Is Extended']);
+    sheet.addRow(['Scholar No', 'Full Name', 'Branch', 'Section', 'Marked At', 'Is Extended']);
 
     // Style header row
     const headerRow = sheet.getRow(4);
@@ -231,7 +231,6 @@ const exportAttendanceExcel = async (req, res) => {
         r.branch,
         r.section,
         r.marked_at ? new Date(r.marked_at).toLocaleString() : '-',
-        r.face_match_score ? `${r.face_match_score.toFixed(1)}%` : '-',
         r.is_extended ? 'Yes' : 'No',
       ]);
     });

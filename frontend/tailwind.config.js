@@ -72,6 +72,6 @@ export default {
         },
       },
     ],
-    defaultTheme: 'oa',
+    defaultTheme: 'oa-dark',
   },
 };

@@ -51,7 +51,6 @@ const migrate = async () => {
         start_time      TIME         NOT NULL,
         end_time        TIME         NOT NULL,
         branches        JSON         NOT NULL COMMENT 'Array of branches e.g. ["CS","IT","ECE"]',
-        sections        JSON         NOT NULL COMMENT 'Array of sections e.g. ["A","B"]',
         status          ENUM('upcoming','active','extended','closed') DEFAULT 'upcoming',
         extended_until  DATETIME     DEFAULT NULL,
         created_by      INT          NOT NULL COMMENT 'tpo_admin user_id',

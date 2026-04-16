@@ -47,7 +47,7 @@ export default function AdminDashboard() {
 
   const [createForm, setCreateForm] = useState({
     title: '', description: '', oa_date: '', start_time: '', end_time: '',
-    branches: [], sections: [],
+    branches: [],
   });
   const [volunteerForm, setVolunteerForm] = useState({
     login_id: '', password: '', full_name: '', role: 'tpo_volunteer',
@@ -100,14 +100,14 @@ export default function AdminDashboard() {
 
   const createSession = async (e) => {
     e.preventDefault();
-    if (!createForm.branches.length || !createForm.sections.length) {
-      return toast.error('Select at least one branch and section');
+    if (!createForm.branches.length) {
+      return toast.error('Select at least one branch');
     }
     try {
       await api.post('/oa', createForm);
       toast.success('OA session created!');
       setShowCreateModal(false);
-      setCreateForm({ title: '', description: '', oa_date: '', start_time: '', end_time: '', branches: [], sections: [] });
+      setCreateForm({ title: '', description: '', oa_date: '', start_time: '', end_time: '', branches: [] });
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create OA');
@@ -697,32 +697,6 @@ export default function AdminDashboard() {
                             : 'bg-white/5 border-white/20 text-blue-200 hover:bg-white/10'
                         }`}>
                           {b}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm text-blue-200 mb-3 font-medium">Sections</p>
-                  <div className="flex flex-wrap gap-2">
-                    {SECTIONS.map(s => (
-                      <label key={s} className="cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="hidden"
-                          checked={createForm.sections.includes(s)}
-                          onChange={() => setCreateForm(p => ({
-                            ...p,
-                            sections: p.sections.includes(s) ? p.sections.filter(x => x !== s) : [...p.sections, s]
-                          }))}
-                        />
-                        <span className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${
-                          createForm.sections.includes(s)
-                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-400 shadow-lg shadow-blue-500/30'
-                            : 'bg-white/5 border-white/20 text-blue-200 hover:bg-white/10'
-                        }`}>
-                          {s}
                         </span>
                       </label>
                     ))}

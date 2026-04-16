@@ -1,15 +1,15 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 
-const ThemeContext = createContext(null);
+const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('oa-theme') || 'oa';
+    return localStorage.getItem('oa-theme-preference') || 'oa-dark';
   });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('oa-theme', theme);
+    localStorage.setItem('oa-theme-preference', theme);
   }, [theme]);
 
   const toggleTheme = () => {

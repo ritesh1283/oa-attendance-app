@@ -8,13 +8,13 @@ const createOASession = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
 
-  const { title, description, oa_date, start_time, end_time, branches, sections } = req.body;
+  const { title, description, oa_date, start_time, end_time, branches } = req.body;
 
   try {
     const [result] = await pool.execute(
-      `INSERT INTO oa_sessions (title, description, oa_date, start_time, end_time, branches, sections, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [title, description, oa_date, start_time, end_time, JSON.stringify(branches), JSON.stringify(sections), req.user.id]
+      `INSERT INTO oa_sessions (title, description, oa_date, start_time, end_time, branches, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [title, description, oa_date, start_time, end_time, JSON.stringify(branches), req.user.id]
     );
 
     await delCachePattern('oa_sessions:*');
@@ -78,8 +78,7 @@ const getOASessions = async (req, res) => {
     // Parse JSON fields
     const parsed = sessions.map(s => ({
       ...s,
-      branches: typeof s.branches === 'string' ? JSON.parse(s.branches) : s.branches,
-      sections: typeof s.sections === 'string' ? JSON.parse(s.sections) : s.sections,
+      branches: typeof s.branches === 'string' ? JSON.parse(s.branches) : s.branches
     }));
 
     const response = {
@@ -113,7 +112,6 @@ const getOASession = async (req, res) => {
     const session = {
       ...sessions[0],
       branches: typeof sessions[0].branches === 'string' ? JSON.parse(sessions[0].branches) : sessions[0].branches,
-      sections: typeof sessions[0].sections === 'string' ? JSON.parse(sessions[0].sections) : sessions[0].sections,
     };
 
     res.json({ success: true, data: session });
@@ -234,8 +232,7 @@ const getActiveOASessions = async (req, res) => {
 
     const parsed = sessions.map(s => ({
       ...s,
-      branches: typeof s.branches === 'string' ? JSON.parse(s.branches) : s.branches,
-      sections: typeof s.sections === 'string' ? JSON.parse(s.sections) : s.sections,
+      branches: typeof s.branches === 'string' ? JSON.parse(s.branches) : s.branches
     }));
 
     console.log('Active OA sessions:', parsed);

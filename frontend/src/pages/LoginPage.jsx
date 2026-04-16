@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import toast from 'react-hot-toast';
 import { FiLock, FiUser, FiEye, FiEyeOff } from 'react-icons/fi';
-
+ 
 const rolePaths = {
   student:         '/student',
   tpo_admin:       '/admin',
@@ -81,7 +81,7 @@ const LoginPage = () => {
               <div className="w-8 h-8 rounded bg-gradient-to-br from-[#ff6b6b] to-[#c44536] flex items-center justify-center font-bold text-lg shadow-lg shadow-[#ff6b6b]/30">
                 M
               </div>
-              <span className="text-2xl font-semibold tracking-wide">OA Track</span>
+              <span className="text-2xl font-semibold tracking-wide">AttendMate</span>
             </div>
 
             <h1 className="text-5xl md:text-6xl font-bold mb-4 text-white">Login</h1>

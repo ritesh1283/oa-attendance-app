@@ -26,6 +26,6 @@ const testConnection = async () => {
     console.error('❌ MySQL connection failed:', err.message);
     process.exit(1);
   }
-};
+}; 
 
 module.exports = { pool, testConnection };

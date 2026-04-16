@@ -28,7 +28,7 @@ const errorHandler = (err, req, res, next) => {
 // ─── Rate limiters ────────────────────────────────────────────────────────────
 const generalLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000,
   message: { success: false, message: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -36,7 +36,7 @@ const generalLimiter = rateLimit({
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: parseInt(process.env.LOGIN_RATE_LIMIT_MAX) || 10,
+  max: parseInt(process.env.LOGIN_RATE_LIMIT_MAX) || 20,
   message: { success: false, message: 'Too many login attempts. Please try again in 15 minutes' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -44,7 +44,7 @@ const loginLimiter = rateLimit({
 
 const faceLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 20,
+  max: 500,
   message: { success: false, message: 'Too many face verification attempts' },
 });
 

@@ -85,8 +85,7 @@ router.post('/oa',
     body('oa_date').isDate(),
     body('start_time').matches(/^\d{2}:\d{2}$/),
     body('end_time').matches(/^\d{2}:\d{2}$/),
-    body('branches').isArray({ min: 1 }),
-    body('sections').isArray({ min: 1 }),
+    body('branches').isArray({ min: 1 })
   ],
   oaCtrl.createOASession
 );
