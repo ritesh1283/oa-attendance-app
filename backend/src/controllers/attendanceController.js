@@ -56,11 +56,7 @@ const markAttendance = async (req, res) => {
       return res.status(409).json({ success: false, message: 'Attendance already marked for this student' });
     }
 
-    // Save attendance image if file uploaded
     let captureImageUrl = null;
-    if (req.file) {
-      captureImageUrl = `/uploads/attendance/${req.file.filename}`;
-    }
 
     const isExtended = session.status === 'extended' ? 1 : 0;
     const deviceInfo = req.headers['user-agent']?.substring(0, 255) || null;

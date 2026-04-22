@@ -12,7 +12,7 @@ const {
   isTpoVolunteer, isCoordinator, isTpoAny, isTpoAdminOrCoordinator
 } = require('../middleware/auth');
 const { loginLimiter, faceLimiter } = require('../middleware/errorHandler');
-const { uploadMemory, uploadDisk }  = require('../middleware/upload');
+const { uploadMemory }  = require('../middleware/upload');
 
 // ════════════════════════════════════════════════════
 // AUTH
@@ -100,7 +100,7 @@ router.patch('/oa/:id/extend',     authenticate, isTpoVolunteer, oaCtrl.extendOA
 // ════════════════════════════════════════════════════
 router.post('/attendance',
   authenticate, isTpoVolunteer,
-  uploadDisk.single('capture_image'),
+  uploadMemory.single('capture_image'),
   attendCtrl.markAttendance
 );
 router.get('/attendance/oa/:session_id',     authenticate, isTpoAny,    attendCtrl.getOAAttendance);
